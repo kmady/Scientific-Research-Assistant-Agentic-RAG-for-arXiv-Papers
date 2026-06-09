@@ -57,6 +57,31 @@ Instruct the RAG pipeline to run the answer through the RAG Triad evaluation met
 python -m agentic_rag.cli query --prompt "What is the core idea of Direct Preference Optimization?" --evaluate
 ```
 
+### E. Run a Reproducible Evaluation Experiment
+Run the full evaluation dataset and save artifacts for dashboarding and comparison:
+```bash
+python -m agentic_rag.cli eval-run \
+  --dataset data/eval/questions.jsonl \
+  --experiment baseline
+```
+
+This creates:
+```text
+runs/baseline/
+  config.json
+  results.jsonl
+  summary.json
+```
+
+Use a new experiment name after changing retrieval, prompting, chunking, or reranking settings:
+```bash
+python -m agentic_rag.cli eval-run \
+  --dataset data/eval/questions.jsonl \
+  --experiment improved_v1
+```
+
+The dashboard phase will compare these experiment folders to show whether response quality improved.
+
 ---
 
 ## 📐 Architecture & Key Design Decisions

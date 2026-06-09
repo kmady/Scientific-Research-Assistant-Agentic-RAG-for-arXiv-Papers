@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 import json
 import logging
@@ -16,11 +17,6 @@ logging.basicConfig(
 # Lower library logs
 logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
-
-from agentic_rag.orchestrator import AgenticOrchestrator
-from agentic_rag.search import ArxivSearchAgent
-from agentic_rag.vector_db import VectorStore
-from agentic_rag.evaluator import RAGEvaluator
 
 try:
     from rich.console import Console
@@ -52,6 +48,8 @@ def print_banner():
         print(banner)
 
 def handle_search(args):
+    from agentic_rag.search import ArxivSearchAgent
+
     console = get_console()
     search_agent = ArxivSearchAgent()
     
@@ -85,6 +83,8 @@ def handle_search(args):
             print("-" * 40)
 
 def handle_ingest(args):
+    from agentic_rag.orchestrator import AgenticOrchestrator
+
     console = get_console()
     orchestrator = AgenticOrchestrator()
     
@@ -126,6 +126,9 @@ def handle_ingest(args):
         print("Error: Please specify either --ids or --query for ingestion.")
 
 def handle_query(args):
+    from agentic_rag.evaluator import RAGEvaluator
+    from agentic_rag.orchestrator import AgenticOrchestrator
+
     console = get_console()
     orchestrator = AgenticOrchestrator()
     
@@ -177,6 +180,38 @@ def handle_query(args):
             eval_results = evaluator.evaluate(args.prompt, retrieved, result["answer"])
             print(json.dumps(eval_results, indent=2))
 
+def handle_eval_run(args):
+    from agentic_rag.experiments import ExperimentRunner
+
+    console = get_console()
+    runner = ExperimentRunner()
+    dataset_path = Path(args.dataset)
+
+    if console:
+        console.print(
+            f"[bold yellow]Running evaluation experiment:[/bold yellow] "
+            f"[white]{args.experiment}[/white]"
+        )
+        with console.status("[bold green]Executing RAG evaluation dataset..."):
+            summary = runner.run(dataset_path, args.experiment, limit=args.limit)
+    else:
+        print(f"Running evaluation experiment: {args.experiment}")
+        summary = runner.run(dataset_path, args.experiment, limit=args.limit)
+
+    if CONSOLE_AVAILABLE:
+        table = Table(title=f"Experiment Summary: {args.experiment}", show_lines=True)
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="bold white")
+        for key, value in summary.items():
+            if isinstance(value, float):
+                value = f"{value:.3f}"
+            table.add_row(key, str(value))
+        console.print(table)
+        console.print(f"[green]Saved results to runs/{args.experiment}/[/green]")
+    else:
+        print(json.dumps(summary, indent=2))
+        print(f"Saved results to runs/{args.experiment}/")
+
 def main():
     print_banner()
     
@@ -198,6 +233,12 @@ def main():
     parser_query = subparsers.add_parser("query", help="Ask the Agentic RAG assistant a question")
     parser_query.add_argument("--prompt", type=str, required=True, help="Your research question")
     parser_query.add_argument("--evaluate", action="store_true", help="Run RAG Triad evaluation on the answer")
+
+    # Evaluation experiment sub-command
+    parser_eval = subparsers.add_parser("eval-run", help="Run a RAG evaluation dataset and save experiment results")
+    parser_eval.add_argument("--dataset", type=str, default="data/eval/questions.jsonl", help="Path to JSONL evaluation dataset")
+    parser_eval.add_argument("--experiment", type=str, required=True, help="Experiment name, e.g. baseline or improved_v1")
+    parser_eval.add_argument("--limit", type=int, help="Optional max number of questions to run")
     
     args = parser.parse_args()
     
@@ -207,6 +248,8 @@ def main():
         handle_ingest(args)
     elif args.command == "query":
         handle_query(args)
+    elif args.command == "eval-run":
+        handle_eval_run(args)
 
 if __name__ == "__main__":
     main()
