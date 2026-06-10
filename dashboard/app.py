@@ -4,7 +4,7 @@ from typing import Any, Dict, List
 import pandas as pd
 import streamlit as st
 
-from dashboard.loaders import (
+from loaders import (
     METRIC_COLUMNS,
     discover_experiments,
     load_experiments,
