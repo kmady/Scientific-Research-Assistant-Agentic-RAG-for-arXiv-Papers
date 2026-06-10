@@ -82,6 +82,25 @@ python -m agentic_rag.cli eval-run \
 
 The dashboard phase will compare these experiment folders to show whether response quality improved.
 
+### F. Launch the Quality Dashboard
+After running at least one evaluation experiment, open the Streamlit dashboard:
+```bash
+streamlit run dashboard/app.py
+```
+
+If you are using the project virtual environment directly:
+```bash
+.venv/bin/streamlit run dashboard/app.py
+```
+
+The dashboard reads all experiment folders under `runs/` and shows:
+- overall score comparisons;
+- context relevance, groundedness, and answer relevance;
+- question-level scores;
+- generated answers;
+- retrieved chunks and agent steps;
+- configuration snapshots for each experiment.
+
 ---
 
 ## 📐 Architecture & Key Design Decisions
