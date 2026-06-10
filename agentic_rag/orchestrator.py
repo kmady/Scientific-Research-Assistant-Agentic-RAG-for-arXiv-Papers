@@ -8,6 +8,7 @@ from agentic_rag.search import ArxivSearchAgent
 from agentic_rag.pdf_parser import PDFProcessor
 from agentic_rag.vector_db import VectorStore
 from agentic_rag import monitoring
+from agentic_rag.logging_config import setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,13 @@ INSTRUCTIONS:
 
 class AgenticOrchestrator:
     def __init__(self):
+        # Configure structured JSON logging
+        try:
+            setup_logging()
+            logger.info("Structured JSON logging enabled")
+        except Exception:
+            logger.exception("Failed to setup structured logging")
+
         # Start metrics server (exposes /metrics on port 8000)
         try:
             monitoring.start_metrics_server(port=int(config.__dict__.get('METRICS_PORT', 8000)))
