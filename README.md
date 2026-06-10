@@ -101,6 +101,19 @@ The dashboard reads all experiment folders under `runs/` and shows:
 - retrieved chunks and agent steps;
 - configuration snapshots for each experiment.
 
+### G. Launch the Prompt UI
+Use the lightweight prompt interface to ask questions and inspect answers interactively:
+```bash
+streamlit run dashboard/query_ui.py
+```
+
+If you are using the project virtual environment directly:
+```bash
+.venv/bin/streamlit run dashboard/query_ui.py
+```
+
+This UI lets you type a research prompt, run the Agentic RAG pipeline, inspect the final answer, view the agent steps, browse retrieved chunks, and optionally evaluate the answer.
+
 ---
 
 ## 📐 Architecture & Key Design Decisions
