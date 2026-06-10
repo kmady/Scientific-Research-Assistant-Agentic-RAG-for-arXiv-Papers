@@ -1,0 +1,183 @@
+# Architecture Interne
+
+Cette page décrit le rôle des modules principaux et le flux de données dans le système.
+
+## Vue d’Ensemble
+
+```text
+User prompt
+  -> AgenticOrchestrator
+  -> LLM decides action
+  -> arXiv search / PDF ingest / retrieval
+  -> VectorStore hybrid search
+  -> LLM final synthesis
+  -> optional RAG evaluation
+```
+
+## `agentic_rag/search.py`
+
+Responsabilités :
+
+- interroger l’API arXiv ;
+- nettoyer les IDs arXiv ;
+- parser les flux Atom XML ;
+- extraire les métadonnées : titre, auteurs, résumé, date, catégories, lien PDF ;
+- télécharger les PDF dans `data/pdfs/`.
+
+Fonctions importantes :
+
+- `clean_arxiv_id(...)`
+- `ArxivSearchAgent.search(...)`
+- `ArxivSearchAgent.fetch_by_ids(...)`
+- `ArxivSearchAgent.download_pdf(...)`
+
+## `agentic_rag/pdf_parser.py`
+
+Responsabilités :
+
+- lire les PDF avec PyMuPDF (`fitz`) ;
+- extraire les blocs de texte avec taille de police, page et style ;
+- détecter les titres de section ;
+- regrouper le texte par section ;
+- découper les sections en chunks ;
+- conserver les métadonnées nécessaires aux citations.
+
+Sortie typique d’un chunk :
+
+```json
+{
+  "arxiv_id": "2407.14477",
+  "title": "Data-Centric Human Preference with Rationales for Direct Preference Alignment",
+  "authors": "...",
+  "section": "Introduction",
+  "page_start": 1,
+  "page_end": 2,
+  "chunk_index": 0,
+  "text": "..."
+}
+```
+
+## `agentic_rag/vector_db.py`
+
+Responsabilités :
+
+- calculer les embeddings ;
+- créer ou charger un index FAISS ;
+- créer un index BM25 ;
+- effectuer la recherche dense ;
+- effectuer la recherche sparse ;
+- fusionner les scores ;
+- appliquer un reranker optionnel ;
+- sauvegarder `index.faiss` et `metadata.pkl`.
+
+Flux de recherche :
+
+```text
+query
+  -> embedding query
+  -> dense FAISS search
+  -> BM25 search
+  -> score normalization
+  -> weighted fusion
+  -> reranking
+  -> top chunks
+```
+
+Paramètres importants :
+
+- `BM25_WEIGHT`
+- `DENSE_WEIGHT`
+- `RETRIEVAL_TOP_K`
+- `RERANK_TOP_N`
+- `USE_RERANKER`
+
+## `agentic_rag/llm.py`
+
+Responsabilités :
+
+- fournir une interface commune `LLMClient.chat(...)` ;
+- gérer Ollama, Gemini, OpenAI et Mock ;
+- retourner des réponses via `LLMResponse`.
+
+Clients disponibles :
+
+- `OllamaClient`
+- `GeminiClient`
+- `OpenAIClient`
+- `MockClient`
+
+## `agentic_rag/orchestrator.py`
+
+Responsabilités :
+
+- piloter la boucle agentique ;
+- transmettre au LLM la liste des outils disponibles ;
+- parser la réponse JSON du LLM ;
+- exécuter les actions ;
+- ajouter les observations au contexte ;
+- retourner la réponse finale.
+
+Actions disponibles :
+
+```text
+search_arxiv
+download_and_index
+retrieve_context
+answer_user
+```
+
+Le LLM doit répondre en JSON :
+
+```json
+{
+  "thought": "Reasoning about the next step",
+  "action": "retrieve_context",
+  "action_input": {
+    "query": "preference rationales alignment",
+    "top_k": 10
+  }
+}
+```
+
+## `agentic_rag/evaluator.py`
+
+Responsabilités :
+
+- formater les chunks récupérés ;
+- demander à un LLM juge de scorer la réponse ;
+- produire trois métriques RAG Triad ;
+- calculer un score global moyen ;
+- générer un rapport Markdown.
+
+Métriques :
+
+- context relevance ;
+- groundedness / faithfulness ;
+- answer relevance.
+
+## `agentic_rag/experiments.py`
+
+Responsabilités :
+
+- lire un dataset JSONL ;
+- lancer une question RAG pour chaque ligne ;
+- récupérer le contexte ;
+- évaluer la réponse ;
+- sauvegarder les résultats dans `runs/<experiment>/`.
+
+Fichiers générés :
+
+```text
+runs/<experiment>/
+  config.json
+  results.jsonl
+  summary.json
+```
+
+## `dashboard/`
+
+Responsabilités :
+
+- `app.py` : dashboard de qualité pour comparer les expériences ;
+- `loaders.py` : lecture et normalisation des fichiers `runs/*` ;
+- `query_ui.py` : UI simple pour poser un prompt et inspecter la réponse.
