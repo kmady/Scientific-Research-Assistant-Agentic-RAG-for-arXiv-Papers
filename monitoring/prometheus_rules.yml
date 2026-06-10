@@ -1,0 +1,29 @@
+groups:
+- name: agentic_rag_alerts
+  rules:
+  - alert: HighLLMP95Latency
+    expr: histogram_quantile(0.95, sum(rate(llm_latency_seconds_bucket[5m])) by (le, model)) > 5
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "LLM p95 latency > 5s"
+      description: "LLM p95 latency over the last 5 minutes is > 5s for model {{ $labels.model }}"
+
+  - alert: LLMErrorSpike
+    expr: increase(llm_requests_total{status="error"}[5m]) > 5
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Spike of LLM errors"
+      description: "More than 5 LLM errors in the last 5 minutes"
+
+  - alert: AgentLoopLatencyHigh
+    expr: rate(agent_step_latency_seconds_sum[5m]) / rate(agent_step_latency_seconds_count[5m]) > 1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Agent loop average latency > 1s"
+      description: "Average agent loop step latency exceeds 1s over 5m"

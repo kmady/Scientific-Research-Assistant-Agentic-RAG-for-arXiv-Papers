@@ -1,0 +1,38 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "graph",
+      "title": "LLM Latency (p95)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(llm_latency_seconds_bucket[5m])) by (le, model))",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Agent Loop Latency (avg)",
+      "targets": [
+        {
+          "expr": "rate(agent_step_latency_seconds_sum[5m]) / rate(agent_step_latency_seconds_count[5m])",
+          "legendFormat": "agent_loop"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "LLM Error Rate",
+      "targets": [
+        {
+          "expr": "sum(rate(llm_requests_total{status=\"error\"}[5m])) by (model)",
+          "legendFormat": "{{model}}"
+        }
+      ]
+    }
+  ],
+  "title": "Agentic RAG Observability"
+}
