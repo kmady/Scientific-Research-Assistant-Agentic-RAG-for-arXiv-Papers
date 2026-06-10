@@ -8,6 +8,8 @@ __pycache__/
 .ruff_cache/
 
 data/cache/
+data/pdfs/
+data/vector_store/
 runs/
 
 .DS_Store
