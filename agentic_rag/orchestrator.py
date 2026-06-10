@@ -1,11 +1,13 @@
 import json
 import logging
+import time
 from typing import List, Dict, Any, Tuple
 from agentic_rag import config
 from agentic_rag.llm import get_llm_client, LLMClient
 from agentic_rag.search import ArxivSearchAgent
 from agentic_rag.pdf_parser import PDFProcessor
 from agentic_rag.vector_db import VectorStore
+from agentic_rag import monitoring
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,13 @@ INSTRUCTIONS:
 
 class AgenticOrchestrator:
     def __init__(self):
+        # Start metrics server (exposes /metrics on port 8000)
+        try:
+            monitoring.start_metrics_server(port=int(config.__dict__.get('METRICS_PORT', 8000)))
+            logger.info("Prometheus metrics server started on port %s", config.__dict__.get('METRICS_PORT', 8000))
+        except Exception:
+            logger.exception("Failed to start Prometheus metrics server")
+
         self.llm = get_llm_client()
         self.search_agent = ArxivSearchAgent()
         self.pdf_processor = PDFProcessor()
@@ -74,12 +83,24 @@ class AgenticOrchestrator:
             ]
             
             try:
+                start_t = time.time()
                 response = self.llm.chat(messages, temperature=0.1, response_json=True)
+                duration = time.time() - start_t
+                model_name = getattr(self.llm, 'model', config.LLM_PROVIDER)
+                monitoring.observe_llm_call(model=model_name, duration=duration, success=True)
+
                 response_text = response.content
                 logger.info(f"Agent Response: {response_text}")
                 
                 action_data = json.loads(response_text)
             except Exception as e:
+                # Record failed LLM attempt
+                try:
+                    model_name = getattr(self.llm, 'model', config.LLM_PROVIDER)
+                    monitoring.observe_llm_call(model=model_name, duration=(time.time() - start_t) if 'start_t' in locals() else 0.0, success=False)
+                except Exception:
+                    pass
+
                 error_msg = f"Failed to parse your response as JSON. Make sure you return valid JSON. Error: {str(e)}"
                 logger.warning(error_msg)
                 current_state += f"\n\nObservation (System): {error_msg}"
@@ -181,7 +202,11 @@ class AgenticOrchestrator:
             {"role": "user", "content": current_state}
         ]
         try:
+            start_t = time.time()
             final_resp = self.llm.chat(force_prompt, temperature=0.2)
+            duration = time.time() - start_t
+            model_name = getattr(self.llm, 'model', config.LLM_PROVIDER)
+            monitoring.observe_llm_call(model=model_name, duration=duration, success=True)
             return {
                 "answer": final_resp.content,
                 "steps": steps_taken,
@@ -189,6 +214,11 @@ class AgenticOrchestrator:
                 "error": "Max steps reached"
             }
         except Exception as e:
+            try:
+                model_name = getattr(self.llm, 'model', config.LLM_PROVIDER)
+                monitoring.observe_llm_call(model=model_name, duration=(time.time() - start_t) if 'start_t' in locals() else 0.0, success=False)
+            except Exception:
+                pass
             return {
                 "answer": "An error occurred during final synthesis.",
                 "steps": steps_taken,
