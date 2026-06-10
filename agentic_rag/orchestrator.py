@@ -9,6 +9,7 @@ from agentic_rag.pdf_parser import PDFProcessor
 from agentic_rag.vector_db import VectorStore
 from agentic_rag import monitoring
 from agentic_rag.logging_config import setup_logging
+from agentic_rag import tracing
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,12 @@ class AgenticOrchestrator:
         except Exception:
             logger.exception("Failed to start Prometheus metrics server")
 
+        # Initialize tracing (optional)
+        try:
+            tracing.setup_tracing(service_name="agentic_rag")
+        except Exception:
+            logger.exception("Failed to setup tracing")
+
         self.llm = get_llm_client()
         self.search_agent = ArxivSearchAgent()
         self.pdf_processor = PDFProcessor()
@@ -83,6 +90,7 @@ class AgenticOrchestrator:
         
         for step in range(self.max_steps):
             logger.info(f"Agent Loop - Step {step + 1}/{self.max_steps}")
+            loop_start = time.time()
             
             # Format history for LLM
             messages = [
@@ -91,11 +99,12 @@ class AgenticOrchestrator:
             ]
             
             try:
-                start_t = time.time()
-                response = self.llm.chat(messages, temperature=0.1, response_json=True)
-                duration = time.time() - start_t
-                model_name = getattr(self.llm, 'model', config.LLM_PROVIDER)
-                monitoring.observe_llm_call(model=model_name, duration=duration, success=True)
+                with tracing.start_span('llm.chat'):
+                    start_t = time.time()
+                    response = self.llm.chat(messages, temperature=0.1, response_json=True)
+                    duration = time.time() - start_t
+                    model_name = getattr(self.llm, 'model', config.LLM_PROVIDER)
+                    monitoring.observe_llm_call(model=model_name, duration=duration, success=True)
 
                 response_text = response.content
                 logger.info(f"Agent Response: {response_text}")
@@ -202,6 +211,13 @@ class AgenticOrchestrator:
             
             # Update state with step execution details
             current_state += f"\n\nStep {step + 1} Action: {action}\nAction Input: {json.dumps(action_input)}\nObservation: {observation}"
+
+            # Observe agent step latency
+            loop_duration = time.time() - loop_start
+            try:
+                monitoring.observe_agent_step(loop_duration)
+            except Exception:
+                pass
             
         # If we exited without answering, force synthesis
         logger.warning("Max steps reached without explicit answer. Forcing synthesis.")
