@@ -99,8 +99,14 @@ class AgenticOrchestrator:
             
             if action == "answer_user":
                 logger.info("Agent decided to answer user. Terminating loop.")
+                synthesis = action_input.get("synthesis", "")
+                if not synthesis:
+                    synthesis = action_input.get("answer", "") or action_input.get("response", "")
+                if not synthesis:
+                    logger.warning("answer_user action did not include a synthesis. Falling back to thought text.")
+                    synthesis = thought
                 return {
-                    "answer": action_input.get("synthesis", ""),
+                    "answer": synthesis,
                     "steps": steps_taken,
                     "success": True
                 }
