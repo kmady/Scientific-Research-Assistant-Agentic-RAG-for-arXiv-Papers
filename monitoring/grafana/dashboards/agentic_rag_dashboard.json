@@ -1,0 +1,50 @@
+{
+  "dashboard": {
+    "id": null,
+    "uid": "agentic-rag-observability",
+    "title": "Agentic RAG Observability",
+    "timezone": "browser",
+    "schemaVersion": 36,
+    "version": 0,
+    "refresh": "10s",
+    "panels": [
+      {
+        "type": "timeseries",
+        "title": "LLM p95 Latency",
+        "datasource": { "type": "prometheus", "uid": "PROMETHEUS" },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(llm_latency_seconds_bucket[5m])) by (le, model))",
+            "legendFormat": "{{model}}"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "type": "timeseries",
+        "title": "Agent Loop Avg Latency",
+        "datasource": { "type": "prometheus", "uid": "PROMETHEUS" },
+        "targets": [
+          {
+            "expr": "rate(agent_step_latency_seconds_sum[5m]) / rate(agent_step_latency_seconds_count[5m])",
+            "legendFormat": "agent_loop"
+          }
+        ],
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 }
+      },
+      {
+        "type": "timeseries",
+        "title": "LLM Error Rate",
+        "datasource": { "type": "prometheus", "uid": "PROMETHEUS" },
+        "targets": [
+          {
+            "expr": "sum(rate(llm_requests_total{status=\"error\"}[5m])) by (model)",
+            "legendFormat": "{{model}}"
+          }
+        ],
+        "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 }
+      }
+    ]
+  },
+  "overwrite": true
+}
