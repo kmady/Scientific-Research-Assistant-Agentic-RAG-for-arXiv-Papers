@@ -13,3 +13,4 @@ data/vector_store/
 runs/
 
 .DS_Store
+.monitoring.log
