@@ -247,6 +247,17 @@ Le dashboard principal est :
 Agentic RAG Observability
 ```
 
+Il expose notamment :
+
+```text
+LLM latency/request rate
+Agent loop latency
+Retrieval p95 latency by mode
+Retrieval request rate by mode/status
+Returned chunks average by mode
+Reranker p95 latency
+```
+
 Prometheus est disponible sur :
 
 ```text
@@ -329,6 +340,11 @@ runs/retrieval_study_v1_bm25/
 runs/retrieval_study_v1_hybrid/
 runs/retrieval_study_v1_hybrid_reranker/
 ```
+
+Pendant l'exécution, Prometheus collecte aussi les métriques `retrieval_latency_seconds`,
+`retrieval_requests_total`, `retrieved_chunks_count` et `reranker_latency_seconds`.
+Grafana permet donc de comparer les modes sur la qualité dans `runs/` et sur le coût
+d'exécution dans le dashboard observability.
 
 ---
 

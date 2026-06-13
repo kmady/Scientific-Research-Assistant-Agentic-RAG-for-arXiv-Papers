@@ -62,6 +62,12 @@ python -m agentic_rag.cli query --prompt "What is the main contribution of paper
 - `agent_step_latency_seconds` - Latence par étape de la boucle agentique
 - `agent_loops_total` - Nombre total d'itérations
 
+### Retrieval Metrics
+- `retrieval_latency_seconds` - Latence par appel de retrieval, avec label `mode`
+- `retrieval_requests_total` - Nombre d'appels retrieval, avec labels `mode` et `status`
+- `retrieved_chunks_count` - Nombre de chunks retournés, avec label `mode`
+- `reranker_latency_seconds` - Latence du reranker, avec labels `model` et `status`
+
 ### System Metrics
 - `process_cpu_seconds` - CPU utilisé par le processus
 - Métriques Python standard (GC, mémoire)
@@ -75,6 +81,10 @@ python -m agentic_rag.cli query --prompt "What is the main contribution of paper
 5. **LLM Request Rate** - Taux de requêtes par minute
 6. **LLM Latency (All Calls)** - Latence moyenne globale
 7. **LLM Error Rate** - Taux d'erreurs LLM
+8. **Retrieval p95 Latency** - Percentile 95 de latence retrieval par mode
+9. **Retrieval Request Rate** - Taux de retrieval par mode et statut
+10. **Returned Chunks Avg** - Nombre moyen de chunks retournés par mode
+11. **Reranker p95 Latency** - Percentile 95 de latence du reranker
 
 ## Requêtes Prometheus Utiles
 
@@ -90,6 +100,12 @@ rate(llm_requests_total{status="error"}[5m])
 
 # Agent loops par minute
 rate(agent_loops_total[1m])
+
+# Latence p95 retrieval par mode
+histogram_quantile(0.95, sum(rate(retrieval_latency_seconds_bucket[5m])) by (le, mode))
+
+# Nombre moyen de chunks retournés par mode
+sum(rate(retrieved_chunks_count_sum[5m])) by (mode) / sum(rate(retrieved_chunks_count_count[5m])) by (mode)
 ```
 
 ## Troubleshooting

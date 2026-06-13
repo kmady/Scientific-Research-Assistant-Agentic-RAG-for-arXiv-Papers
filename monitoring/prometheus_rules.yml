@@ -27,3 +27,12 @@ groups:
     annotations:
       summary: "Agent loop average latency > 1s"
       description: "Average agent loop step latency exceeds 1s over 5m"
+
+  - alert: RetrievalP95LatencyHigh
+    expr: histogram_quantile(0.95, sum(rate(retrieval_latency_seconds_bucket[5m])) by (le, mode)) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Retrieval p95 latency > 2s"
+      description: "Retrieval p95 latency over the last 5 minutes is > 2s for mode {{ $labels.mode }}"

@@ -3,12 +3,14 @@ import re
 import pickle
 import logging
 import numpy as np
+import time
 from enum import Enum
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 from rank_bm25 import BM25Okapi
 
 from agentic_rag import config
+from agentic_rag import monitoring
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +155,7 @@ class RerankerEngine:
         if not should_rerank or not chunks:
             return chunks[:top_n]
 
+        started_at = time.perf_counter()
         try:
             # Prepare pairs (query, chunk_text)
             pairs = [[query, chunk["text"]] for chunk in chunks]
@@ -166,8 +169,10 @@ class RerankerEngine:
                 chunk["rerank_score"] = float(score)
                 
             sorted_chunks = sorted(chunks, key=lambda x: x["rerank_score"], reverse=True)
+            monitoring.observe_reranker(self.model_name, time.perf_counter() - started_at, success=True)
             return sorted_chunks[:top_n]
         except Exception as e:
+            monitoring.observe_reranker(self.model_name, time.perf_counter() - started_at, success=False)
             logger.error(f"Reranking failed: {e}. Returning original ranking.")
             return chunks[:top_n]
 
@@ -454,17 +459,35 @@ class VectorStore:
     ) -> List[Dict[str, Any]]:
         """Search chunks using one of the comparable retrieval modes."""
         retrieval_mode = normalize_retrieval_mode(mode)
+        started_at = time.perf_counter()
 
-        if retrieval_mode == RetrievalMode.FAISS:
-            return self._search_faiss_chunks(query, top_k)
-        if retrieval_mode == RetrievalMode.BM25:
-            return self._search_bm25_chunks(query, top_k)
-        if retrieval_mode == RetrievalMode.HYBRID:
-            return self._search_hybrid_chunks(query, top_k, rerank=False)
-        if retrieval_mode == RetrievalMode.HYBRID_RERANKER:
-            return self._search_hybrid_chunks(query, top_k, rerank=True)
+        try:
+            if retrieval_mode == RetrievalMode.FAISS:
+                results = self._search_faiss_chunks(query, top_k)
+            elif retrieval_mode == RetrievalMode.BM25:
+                results = self._search_bm25_chunks(query, top_k)
+            elif retrieval_mode == RetrievalMode.HYBRID:
+                results = self._search_hybrid_chunks(query, top_k, rerank=False)
+            elif retrieval_mode == RetrievalMode.HYBRID_RERANKER:
+                results = self._search_hybrid_chunks(query, top_k, rerank=True)
+            else:
+                raise AssertionError(f"Unhandled retrieval mode: {retrieval_mode}")
 
-        raise AssertionError(f"Unhandled retrieval mode: {retrieval_mode}")
+            monitoring.observe_retrieval(
+                retrieval_mode.value,
+                time.perf_counter() - started_at,
+                success=True,
+                chunk_count=len(results),
+            )
+            return results
+        except Exception:
+            monitoring.observe_retrieval(
+                retrieval_mode.value,
+                time.perf_counter() - started_at,
+                success=False,
+                chunk_count=0,
+            )
+            raise
 
     def hybrid_search(self, query: str, top_k: int = config.RETRIEVAL_TOP_K) -> List[Dict[str, Any]]:
         """Backward-compatible entrypoint for the historical hybrid + reranker path."""
