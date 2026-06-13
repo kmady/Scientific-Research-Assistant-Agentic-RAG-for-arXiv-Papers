@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Callable
 from agentic_rag import config
 from agentic_rag.llm import get_llm_client
 
@@ -69,12 +69,18 @@ class RAGEvaluator:
         self.backend = normalize_evaluation_backend(backend)
         self.llm = get_llm_client()
 
-    def evaluate(self, query: str, retrieved_chunks: List[Dict[str, Any]], answer: str) -> Dict[str, Any]:
+    def evaluate(
+        self,
+        query: str,
+        retrieved_chunks: List[Dict[str, Any]],
+        answer: str,
+        expected_topics: List[str] | None = None,
+    ) -> Dict[str, Any]:
         """Runs the RAG Triad evaluation on a query, its retrieved context, and the generated answer."""
         if self.backend == "ragas":
-            return self._evaluate_with_ragas(query, retrieved_chunks, answer)
+            return self._evaluate_with_ragas(query, retrieved_chunks, answer, expected_topics)
         if self.backend == "deepeval":
-            return self._evaluate_with_deepeval(query, retrieved_chunks, answer)
+            return self._evaluate_with_deepeval(query, retrieved_chunks, answer, expected_topics)
 
         return self._evaluate_with_llm_judge(query, retrieved_chunks, answer)
 
@@ -95,6 +101,29 @@ class RAGEvaluator:
             "backend_error": message,
         }
         return result
+
+    def _context_texts(self, retrieved_chunks: List[Dict[str, Any]]) -> List[str]:
+        return [chunk.get("text", "") for chunk in retrieved_chunks if chunk.get("text")]
+
+    def _reference_text(self, expected_topics: List[str] | None) -> str:
+        if not expected_topics:
+            return ""
+        return "; ".join(expected_topics)
+
+    def _metric_result(self, score: float | None, reason: str) -> Dict[str, Any]:
+        try:
+            numeric_score = float(score)
+        except (TypeError, ValueError):
+            numeric_score = 0.0
+        return {"score": max(0.0, min(1.0, numeric_score)), "reason": reason}
+
+    def _overall_score(self, results: Dict[str, Any]) -> float:
+        scores = [
+            results["context_relevance"]["score"],
+            results["groundedness"]["score"],
+            results["answer_relevance"]["score"],
+        ]
+        return sum(scores) / len(scores) if scores else 0.0
 
     def _evaluate_with_llm_judge(self, query: str, retrieved_chunks: List[Dict[str, Any]], answer: str) -> Dict[str, Any]:
         """Runs the local LLM-judge RAG Triad evaluation."""
@@ -129,51 +158,115 @@ class RAGEvaluator:
             logger.error(f"Failed to evaluate answer relevance: {e}")
             results["answer_relevance"] = {"score": 0.0, "reason": f"Evaluation error: {str(e)}"}
             
-        # Compute overall RAG score (average of the three)
-        scores = [
-            results["context_relevance"]["score"],
-            results["groundedness"]["score"],
-            results["answer_relevance"]["score"]
-        ]
-        results["overall_rag_score"] = sum(scores) / len(scores) if scores else 0.0
+        results["overall_rag_score"] = self._overall_score(results)
         results["evaluation_backend"] = "llm_judge"
         
         return results
 
-    def _evaluate_with_ragas(self, query: str, retrieved_chunks: List[Dict[str, Any]], answer: str) -> Dict[str, Any]:
-        """Optional RAGAS integration placeholder.
-
-        RAGAS is intentionally optional so the default project remains lightweight.
-        Install and wire the provider dependencies before using this backend for
-        publication-quality experiments.
-        """
+    def _evaluate_with_ragas(
+        self,
+        query: str,
+        retrieved_chunks: List[Dict[str, Any]],
+        answer: str,
+        expected_topics: List[str] | None = None,
+    ) -> Dict[str, Any]:
+        """Run RAGAS when optional dependencies and provider config are available."""
         try:
-            import ragas  # noqa: F401
+            from datasets import Dataset
+            from ragas import evaluate as ragas_evaluate
+            from ragas.metrics import answer_relevancy, context_precision, faithfulness
         except ImportError:
             return self._backend_error_result(
                 "ragas",
-                "RAGAS backend requested, but ragas is not installed. Install optional evaluation dependencies before using EVALUATION_BACKEND=ragas.",
+                "RAGAS backend requested, but optional dependencies are not installed. Install requirements-eval.txt before using EVALUATION_BACKEND=ragas.",
             )
 
-        return self._backend_error_result(
-            "ragas",
-            "RAGAS backend scaffold is available, but metric execution has not been configured for this project yet.",
-        )
+        contexts = self._context_texts(retrieved_chunks)
+        reference = self._reference_text(expected_topics) or query
+        dataset = Dataset.from_dict({
+            "question": [query],
+            "answer": [answer],
+            "contexts": [contexts],
+            "ground_truth": [reference],
+            "reference": [reference],
+        })
 
-    def _evaluate_with_deepeval(self, query: str, retrieved_chunks: List[Dict[str, Any]], answer: str) -> Dict[str, Any]:
-        """Optional DeepEval integration placeholder."""
         try:
-            import deepeval  # noqa: F401
+            result = ragas_evaluate(
+                dataset,
+                metrics=[context_precision, faithfulness, answer_relevancy],
+            )
+            scores = result.to_pandas().iloc[0].to_dict()
+        except Exception as exc:
+            logger.error("RAGAS evaluation failed: %s", exc)
+            return self._backend_error_result("ragas", f"RAGAS evaluation error: {exc}")
+
+        results = {
+            "context_relevance": self._metric_result(
+                scores.get("context_precision"),
+                "RAGAS context_precision mapped to context_relevance.",
+            ),
+            "groundedness": self._metric_result(
+                scores.get("faithfulness"),
+                "RAGAS faithfulness mapped to groundedness.",
+            ),
+            "answer_relevance": self._metric_result(
+                scores.get("answer_relevancy"),
+                "RAGAS answer_relevancy mapped to answer_relevance.",
+            ),
+            "evaluation_backend": "ragas",
+            "raw_scores": scores,
+        }
+        results["overall_rag_score"] = self._overall_score(results)
+        return results
+
+    def _evaluate_with_deepeval(
+        self,
+        query: str,
+        retrieved_chunks: List[Dict[str, Any]],
+        answer: str,
+        expected_topics: List[str] | None = None,
+    ) -> Dict[str, Any]:
+        """Run DeepEval when optional dependencies and provider config are available."""
+        try:
+            from deepeval.metrics import AnswerRelevancyMetric, ContextualRelevancyMetric, FaithfulnessMetric
+            from deepeval.test_case import LLMTestCase
         except ImportError:
             return self._backend_error_result(
                 "deepeval",
-                "DeepEval backend requested, but deepeval is not installed. Install optional evaluation dependencies before using EVALUATION_BACKEND=deepeval.",
+                "DeepEval backend requested, but optional dependencies are not installed. Install requirements-eval.txt before using EVALUATION_BACKEND=deepeval.",
             )
 
-        return self._backend_error_result(
-            "deepeval",
-            "DeepEval backend scaffold is available, but metric execution has not been configured for this project yet.",
+        test_case = LLMTestCase(
+            input=query,
+            actual_output=answer,
+            expected_output=self._reference_text(expected_topics),
+            retrieval_context=self._context_texts(retrieved_chunks),
         )
+        metric_factories: Dict[str, Callable[[], Any]] = {
+            "context_relevance": lambda: ContextualRelevancyMetric(threshold=0.0),
+            "groundedness": lambda: FaithfulnessMetric(threshold=0.0),
+            "answer_relevance": lambda: AnswerRelevancyMetric(threshold=0.0),
+        }
+
+        results: Dict[str, Any] = {"evaluation_backend": "deepeval", "raw_scores": {}}
+        for target_name, factory in metric_factories.items():
+            try:
+                metric = factory()
+                metric.measure(test_case)
+                score = getattr(metric, "score", 0.0)
+                reason = getattr(metric, "reason", f"DeepEval {metric.__class__.__name__} score.")
+                results[target_name] = self._metric_result(score, reason)
+                results["raw_scores"][metric.__class__.__name__] = {
+                    "score": score,
+                    "reason": reason,
+                }
+            except Exception as exc:
+                logger.error("DeepEval metric %s failed: %s", target_name, exc)
+                results[target_name] = self._metric_result(0.0, f"DeepEval metric error: {exc}")
+
+        results["overall_rag_score"] = self._overall_score(results)
+        return results
         
     def generate_report_markdown(self, query: str, retrieved_chunks: List[Dict[str, Any]], answer: str, eval_results: Dict[str, Any]) -> str:
         """Helper to generate a clean, formatted Markdown report of the evaluation."""

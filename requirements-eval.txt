@@ -1,0 +1,7 @@
+# Optional evaluation backends for comparative studies.
+# Install with:
+#   .venv/bin/python -m pip install -r requirements-eval.txt
+
+ragas>=0.2.0
+datasets>=2.19.0
+deepeval>=1.0.0

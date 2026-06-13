@@ -157,12 +157,22 @@ et :
   --limit 1
 ```
 
-À ce stade, ces backends sont volontairement scaffoldés : si les dépendances ne
-sont pas installées ou si les métriques ne sont pas encore câblées, le résultat
-indique explicitement l'erreur dans `backend_error`. L'étape suivante consiste à
-ajouter les dépendances optionnelles et à mapper leurs scores vers les champs
-communs `context_relevance`, `groundedness`, `answer_relevance` et
-`overall_rag_score`.
+Installer les dépendances optionnelles :
+
+```bash
+.venv/bin/python -m pip install -r requirements-eval.txt
+```
+
+Les scores sont normalisés vers les champs communs :
+
+| Champ projet | RAGAS | DeepEval |
+|---|---|---|
+| `context_relevance` | `context_precision` | `ContextualRelevancyMetric` |
+| `groundedness` | `faithfulness` | `FaithfulnessMetric` |
+| `answer_relevance` | `answer_relevancy` | `AnswerRelevancyMetric` |
+
+Si les dépendances ou la configuration fournisseur manquent, le résultat indique
+explicitement l'erreur dans `backend_error` ou dans la raison de la métrique.
 
 ## Comparer Deux Versions
 

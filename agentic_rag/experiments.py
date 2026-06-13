@@ -142,7 +142,12 @@ class ExperimentRunner:
                 top_k=config.RETRIEVAL_TOP_K,
                 mode=self.retrieval_mode,
             )
-            evaluation = self.evaluator.evaluate(question, retrieved, rag_result.get("answer", ""))
+            evaluation = self.evaluator.evaluate(
+                question,
+                retrieved,
+                rag_result.get("answer", ""),
+                expected_topics=item.get("expected_topics", []),
+            )
 
             record = {
                 "id": question_id,

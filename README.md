@@ -355,9 +355,21 @@ d'exécution dans le dashboard observability.
 
 Le backend d'évaluation se configure avec `EVALUATION_BACKEND` ou
 `--evaluation-backend`. Le backend stable actuel est `llm_judge`. Les valeurs
-`ragas` et `deepeval` sont préparées comme intégrations optionnelles, mais elles
-nécessitent encore l'installation et le câblage des dépendances correspondantes
-avant une mesure finale publiable.
+`ragas` et `deepeval` sont des intégrations optionnelles :
+
+```bash
+.venv/bin/python -m pip install -r requirements-eval.txt
+```
+
+Exemple :
+
+```bash
+.venv/bin/python -m agentic_rag.cli benchmark \
+  --dataset data/eval/questions.jsonl \
+  --experiment retrieval_study_ragas_v1 \
+  --evaluation-backend ragas \
+  --limit 3
+```
 
 ---
 
