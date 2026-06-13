@@ -18,6 +18,16 @@ DEFAULT_BENCHMARK_MODES = [
     RetrievalMode.HYBRID_RERANKER,
 ]
 
+HIGHER_IS_BETTER_METRICS = [
+    "overall_rag_score",
+    "avg_context_relevance",
+    "avg_groundedness",
+    "avg_answer_relevance",
+]
+LOWER_IS_BETTER_METRICS = [
+    "avg_latency_seconds",
+]
+
 
 def parse_modes(raw_modes: str | None) -> List[str]:
     if not raw_modes:
@@ -40,6 +50,12 @@ def write_json(path: Path, data: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
+
+
+def write_text(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
 
 
 class BenchmarkRunner:
@@ -84,6 +100,7 @@ class BenchmarkRunner:
         )
         write_json(benchmark_dir / "comparison.json", comparison)
         write_json(benchmark_dir / "summary.json", comparison)
+        write_text(benchmark_dir / "report.md", self._report_markdown(comparison))
         return comparison
 
     def _comparison_summary(
@@ -102,6 +119,11 @@ class BenchmarkRunner:
         )
 
         best = ranked[0] if ranked else None
+        lowest_latency = min(
+            mode_summaries,
+            key=lambda item: item.get("avg_latency_seconds", float("inf")),
+            default=None,
+        )
         comparison = {
             "benchmark": benchmark,
             "dataset_path": str(dataset_path),
@@ -110,6 +132,9 @@ class BenchmarkRunner:
             "evaluation_backend": evaluation_backend,
             "experiments": [summary["experiment"] for summary in mode_summaries],
             "best_by_overall_rag_score": best,
+            "best_by_lowest_latency": lowest_latency,
+            "metric_winners": self._metric_winners(mode_summaries),
+            "ranked_results": ranked,
             "results": mode_summaries,
             "completed_at": datetime.now(timezone.utc).isoformat(),
         }
@@ -127,3 +152,78 @@ class BenchmarkRunner:
             comparison["best_retrieval_mode"] = best.get("retrieval_mode")
 
         return comparison
+
+    def _metric_winners(self, mode_summaries: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        winners = {}
+        for metric in HIGHER_IS_BETTER_METRICS:
+            winner = max(
+                mode_summaries,
+                key=lambda item: item.get(metric, float("-inf")),
+                default=None,
+            )
+            if winner:
+                winners[metric] = {
+                    "retrieval_mode": winner.get("retrieval_mode"),
+                    "experiment": winner.get("experiment"),
+                    "value": winner.get(metric),
+                    "direction": "higher_is_better",
+                }
+
+        for metric in LOWER_IS_BETTER_METRICS:
+            winner = min(
+                mode_summaries,
+                key=lambda item: item.get(metric, float("inf")),
+                default=None,
+            )
+            if winner:
+                winners[metric] = {
+                    "retrieval_mode": winner.get("retrieval_mode"),
+                    "experiment": winner.get("experiment"),
+                    "value": winner.get(metric),
+                    "direction": "lower_is_better",
+                }
+
+        return winners
+
+    def _report_markdown(self, comparison: Dict[str, Any]) -> str:
+        lines = [
+            f"# Benchmark Report: {comparison['benchmark']}",
+            "",
+            f"- Dataset: `{comparison['dataset_path']}`",
+            f"- Evaluation backend: `{comparison['evaluation_backend']}`",
+            f"- Limit: `{comparison.get('limit')}`",
+            f"- Completed at: `{comparison['completed_at']}`",
+            "",
+            "## Winners",
+            "",
+        ]
+
+        for metric, winner in comparison.get("metric_winners", {}).items():
+            value = winner.get("value", 0.0)
+            lines.append(
+                f"- `{metric}`: `{winner.get('retrieval_mode')}` "
+                f"({float(value):.4f}, {winner.get('direction')})"
+            )
+
+        lines.extend([
+            "",
+            "## Results",
+            "",
+            "| Rank | Mode | Overall | Context | Groundedness | Answer | Latency (s) |",
+            "|---:|---|---:|---:|---:|---:|---:|",
+        ])
+
+        for rank, row in enumerate(comparison.get("ranked_results", []), start=1):
+            lines.append(
+                "| "
+                f"{rank} | "
+                f"{row.get('retrieval_mode', '')} | "
+                f"{row.get('overall_rag_score', 0.0):.4f} | "
+                f"{row.get('avg_context_relevance', 0.0):.4f} | "
+                f"{row.get('avg_groundedness', 0.0):.4f} | "
+                f"{row.get('avg_answer_relevance', 0.0):.4f} | "
+                f"{row.get('avg_latency_seconds', 0.0):.4f} |"
+            )
+
+        lines.append("")
+        return "\n".join(lines)

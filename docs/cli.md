@@ -132,7 +132,9 @@ Ou lancer un benchmark complet :
   --limit 1
 ```
 
-Le benchmark crée un `comparison.json` et un dossier d’expérience par mode.
+Le benchmark crée un `comparison.json`, un `report.md` et un dossier
+d’expérience par mode. `comparison.json` contient aussi les gagnants par métrique
+pour faciliter la lecture dans le dashboard Streamlit.
 Le backend `llm_judge` est opérationnel par défaut. `ragas` et `deepeval` sont
 des backends optionnels préparés pour l'étape suivante; ils signalent clairement
 les dépendances manquantes tant qu'ils ne sont pas câblés.

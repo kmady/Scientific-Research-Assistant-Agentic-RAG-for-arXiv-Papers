@@ -21,6 +21,13 @@ def read_json(path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
+def read_text(path: Path) -> str:
+    if not path.exists():
+        return ""
+    with open(path, "r", encoding="utf-8") as f:
+        return f.read()
+
+
 def read_jsonl(path: Path) -> List[Dict[str, Any]]:
     if not path.exists():
         return []
@@ -50,6 +57,7 @@ def load_experiment(runs_dir: Path, experiment: str) -> Dict[str, Any]:
         "path": experiment_dir,
         "summary": read_json(experiment_dir / "summary.json"),
         "comparison": read_json(experiment_dir / "comparison.json"),
+        "report": read_text(experiment_dir / "report.md"),
         "config": read_json(experiment_dir / "config.json"),
         "results": read_jsonl(experiment_dir / "results.jsonl"),
     }

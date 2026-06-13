@@ -185,10 +185,19 @@ def render_benchmark_view(experiments: List[Dict[str, Any]]) -> None:
     comparison = benchmark["comparison"]
 
     rows = comparison.get("results", [])
+    winners = comparison.get("metric_winners", {})
+    if winners:
+        st.markdown("**Metric Winners**")
+        winner_cols = st.columns(min(len(winners), 5))
+        for col, (metric, winner) in zip(winner_cols, winners.items()):
+            value = winner.get("value", 0.0)
+            col.metric(metric, format_score(value), winner.get("retrieval_mode", ""))
+
     display_columns = [
         "retrieval_mode",
         "experiment",
         "questions",
+        "evaluation_backend",
         "overall_rag_score",
         "avg_context_relevance",
         "avg_groundedness",
@@ -204,6 +213,11 @@ def render_benchmark_view(experiments: List[Dict[str, Any]]) -> None:
     if best:
         st.markdown("**Best overall**")
         st.json(best)
+
+    report = benchmark.get("report", "")
+    if report:
+        with st.expander("Benchmark Report"):
+            st.markdown(report)
 
 
 def main() -> None:

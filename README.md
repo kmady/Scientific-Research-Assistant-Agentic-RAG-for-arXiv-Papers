@@ -337,11 +337,16 @@ Cette commande crée :
 
 ```text
 runs/retrieval_study_v1/comparison.json
+runs/retrieval_study_v1/report.md
 runs/retrieval_study_v1_faiss/
 runs/retrieval_study_v1_bm25/
 runs/retrieval_study_v1_hybrid/
 runs/retrieval_study_v1_hybrid_reranker/
 ```
+
+`comparison.json` contient les résultats, les gagnants par métrique et le meilleur
+mode par latence. `report.md` donne une synthèse lisible directement depuis
+l'onglet `Benchmarks` du dashboard Streamlit.
 
 Pendant l'exécution, Prometheus collecte aussi les métriques `retrieval_latency_seconds`,
 `retrieval_requests_total`, `retrieved_chunks_count` et `reranker_latency_seconds`.
