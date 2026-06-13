@@ -344,9 +344,9 @@ runs/retrieval_study_v1_hybrid/
 runs/retrieval_study_v1_hybrid_reranker/
 ```
 
-`comparison.json` contient les résultats, les gagnants par métrique et le meilleur
-mode par latence. `report.md` donne une synthèse lisible directement depuis
-l'onglet `Benchmarks` du dashboard Streamlit.
+`comparison.json` contient les résultats, les gagnants par métrique, le meilleur
+mode par latence et le meilleur mode par type de question. `report.md` donne une
+synthèse lisible directement depuis l'onglet `Benchmarks` du dashboard Streamlit.
 
 Pendant l'exécution, Prometheus collecte aussi les métriques `retrieval_latency_seconds`,
 `retrieval_requests_total`, `retrieved_chunks_count` et `reranker_latency_seconds`.

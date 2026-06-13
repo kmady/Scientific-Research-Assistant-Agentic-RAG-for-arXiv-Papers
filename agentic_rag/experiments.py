@@ -84,7 +84,7 @@ def summarize_results(records: List[Dict[str, Any]], experiment: str) -> Dict[st
     def avg(values: List[float]) -> float:
         return sum(values) / len(values) if values else 0.0
 
-    return {
+    summary = {
         "experiment": experiment,
         "questions": count,
         "overall_rag_score": avg([r["evaluation"].get("overall_rag_score", 0.0) for r in records]),
@@ -94,6 +94,29 @@ def summarize_results(records: List[Dict[str, Any]], experiment: str) -> Dict[st
         "avg_latency_seconds": avg([r.get("latency_seconds", 0.0) for r in records]),
         "completed_at": datetime.now(timezone.utc).isoformat(),
     }
+    summary["by_question_type"] = summarize_by_question_type(records)
+    return summary
+
+
+def summarize_by_question_type(records: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    for record in records:
+        question_type = record.get("question_type") or "unknown"
+        grouped.setdefault(question_type, []).append(record)
+
+    breakdown = {}
+    for question_type, items in sorted(grouped.items()):
+        count = len(items)
+        breakdown[question_type] = {
+            "questions": count,
+            "overall_rag_score": sum(r["evaluation"].get("overall_rag_score", 0.0) for r in items) / count,
+            "avg_context_relevance": sum(safe_score(r["evaluation"], "context_relevance") for r in items) / count,
+            "avg_groundedness": sum(safe_score(r["evaluation"], "groundedness") for r in items) / count,
+            "avg_answer_relevance": sum(safe_score(r["evaluation"], "answer_relevance") for r in items) / count,
+            "avg_latency_seconds": sum(r.get("latency_seconds", 0.0) for r in items) / count,
+        }
+
+    return breakdown
 
 
 class ExperimentRunner:

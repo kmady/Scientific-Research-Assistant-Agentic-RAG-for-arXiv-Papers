@@ -134,6 +134,7 @@ class BenchmarkRunner:
             "best_by_overall_rag_score": best,
             "best_by_lowest_latency": lowest_latency,
             "metric_winners": self._metric_winners(mode_summaries),
+            "question_type_winners": self._question_type_winners(mode_summaries),
             "ranked_results": ranked,
             "results": mode_summaries,
             "completed_at": datetime.now(timezone.utc).isoformat(),
@@ -185,6 +186,36 @@ class BenchmarkRunner:
 
         return winners
 
+    def _question_type_winners(self, mode_summaries: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        question_types = sorted({
+            question_type
+            for summary in mode_summaries
+            for question_type in summary.get("by_question_type", {}).keys()
+        })
+        winners = {}
+        for question_type in question_types:
+            candidates = [
+                summary
+                for summary in mode_summaries
+                if question_type in summary.get("by_question_type", {})
+            ]
+            winner = max(
+                candidates,
+                key=lambda item: item["by_question_type"][question_type].get("overall_rag_score", 0.0),
+                default=None,
+            )
+            if not winner:
+                continue
+            metrics = winner["by_question_type"][question_type]
+            winners[question_type] = {
+                "retrieval_mode": winner.get("retrieval_mode"),
+                "experiment": winner.get("experiment"),
+                "overall_rag_score": metrics.get("overall_rag_score"),
+                "questions": metrics.get("questions"),
+            }
+
+        return winners
+
     def _report_markdown(self, comparison: Dict[str, Any]) -> str:
         lines = [
             f"# Benchmark Report: {comparison['benchmark']}",
@@ -204,6 +235,24 @@ class BenchmarkRunner:
                 f"- `{metric}`: `{winner.get('retrieval_mode')}` "
                 f"({float(value):.4f}, {winner.get('direction')})"
             )
+
+        question_type_winners = comparison.get("question_type_winners", {})
+        if question_type_winners:
+            lines.extend([
+                "",
+                "## Winners by Question Type",
+                "",
+                "| Question type | Best mode | Overall | Questions |",
+                "|---|---|---:|---:|",
+            ])
+            for question_type, winner in question_type_winners.items():
+                lines.append(
+                    "| "
+                    f"{question_type} | "
+                    f"{winner.get('retrieval_mode', '')} | "
+                    f"{winner.get('overall_rag_score', 0.0):.4f} | "
+                    f"{winner.get('questions', 0)} |"
+                )
 
         lines.extend([
             "",

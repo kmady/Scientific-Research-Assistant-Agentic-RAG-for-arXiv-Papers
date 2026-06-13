@@ -214,6 +214,21 @@ def render_benchmark_view(experiments: List[Dict[str, Any]]) -> None:
         st.markdown("**Best overall**")
         st.json(best)
 
+    question_type_winners = comparison.get("question_type_winners", {})
+    if question_type_winners:
+        st.markdown("**Best Mode by Question Type**")
+        st.dataframe(
+            pd.DataFrame([
+                {
+                    "question_type": question_type,
+                    **winner,
+                }
+                for question_type, winner in question_type_winners.items()
+            ]),
+            use_container_width=True,
+            hide_index=True,
+        )
+
     report = benchmark.get("report", "")
     if report:
         with st.expander("Benchmark Report"):

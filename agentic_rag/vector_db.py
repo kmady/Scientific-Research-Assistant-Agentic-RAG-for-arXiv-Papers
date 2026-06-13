@@ -70,8 +70,11 @@ class EmbeddingEngine:
         self.provider = config.EMBEDDING_PROVIDER.lower()
         self.model_name = config.LOCAL_EMBEDDING_MODEL
         self._model = None
+        self._local_unavailable = False
 
     def _load_local_model(self):
+        if self._local_unavailable:
+            raise RuntimeError(f"Local embedding model is unavailable: {self.model_name}")
         if self._model is None:
             logger.info(f"Loading local embedding model: {self.model_name}")
             from sentence_transformers import SentenceTransformer
@@ -84,9 +87,13 @@ class EmbeddingEngine:
 
     def embed_documents(self, texts: List[str]) -> np.ndarray:
         if self.provider == "local":
-            model = self._load_local_model()
-            embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-            return embeddings
+            try:
+                model = self._load_local_model()
+                embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
+                return embeddings
+            except Exception as e:
+                self._local_unavailable = True
+                logger.error(f"Local embeddings failed: {e}. Falling back to random embeddings.")
         elif self.provider == "openai":
             # Direct API request to OpenAI embeddings
             import requests
