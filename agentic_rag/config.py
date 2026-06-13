@@ -33,6 +33,7 @@ USE_RERANKER = os.getenv("USE_RERANKER", "true").lower() == "true"
 LOCAL_RERANKER_MODEL = os.getenv("LOCAL_RERANKER_MODEL", "BAAI/bge-reranker-base")
 
 # Retrieval & Hybrid Search Configuration
+RETRIEVAL_MODE = os.getenv("RETRIEVAL_MODE", "hybrid_reranker")
 BM25_WEIGHT = float(os.getenv("BM25_WEIGHT", "0.3"))
 DENSE_WEIGHT = float(os.getenv("DENSE_WEIGHT", "0.7"))
 RETRIEVAL_TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "30"))  # Retrieve top K candidates for reranking

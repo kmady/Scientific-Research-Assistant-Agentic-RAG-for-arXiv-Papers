@@ -67,17 +67,28 @@ La sortie contient :
 ```bash
 .venv/bin/python -m agentic_rag.cli query \
   --prompt "How does the paper use rationales to improve preference alignment?" \
-  --evaluate
+  --evaluate \
+  --retrieval-mode hybrid_reranker
 ```
 
 L’option `--evaluate` lance ensuite `RAGEvaluator` sur la réponse.
+
+Modes retrieval disponibles :
+
+| Mode | Description |
+|---|---|
+| `faiss` | Recherche dense seule. |
+| `bm25` | Recherche sparse BM25 seule. |
+| `hybrid` | Fusion dense + BM25 avec boost metadata. |
+| `hybrid_reranker` | Hybrid retrieval suivi du reranker. |
 
 ## Lancer une Expérience
 
 ```bash
 .venv/bin/python -m agentic_rag.cli eval-run \
   --dataset data/eval/questions.jsonl \
-  --experiment baseline
+  --experiment baseline \
+  --retrieval-mode hybrid_reranker
 ```
 
 Options :
@@ -87,6 +98,7 @@ Options :
 | `--dataset` | Chemin du dataset JSONL. |
 | `--experiment` | Nom du dossier dans `runs/`. |
 | `--limit` | Nombre maximal de questions à exécuter. |
+| `--retrieval-mode` | `faiss`, `bm25`, `hybrid` ou `hybrid_reranker`. |
 
 Exemple rapide sur une seule question :
 
@@ -94,7 +106,17 @@ Exemple rapide sur une seule question :
 .venv/bin/python -m agentic_rag.cli eval-run \
   --dataset data/eval/questions.jsonl \
   --experiment smoke_test \
-  --limit 1
+  --limit 1 \
+  --retrieval-mode faiss
+```
+
+Comparer les quatre modes :
+
+```bash
+.venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment faiss_v1 --retrieval-mode faiss
+.venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment bm25_v1 --retrieval-mode bm25
+.venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment hybrid_v1 --retrieval-mode hybrid
+.venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment hybrid_reranker_v1 --retrieval-mode hybrid_reranker
 ```
 
 ## Commandes Fréquentes
@@ -113,5 +135,5 @@ Exemple rapide sur une seule question :
 .venv/bin/python -m agentic_rag.cli query --prompt "What are the paper limitations?" --evaluate
 
 # Expérience
-.venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment baseline
+.venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment baseline --retrieval-mode hybrid_reranker
 ```

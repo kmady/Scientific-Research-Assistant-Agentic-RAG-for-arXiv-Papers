@@ -67,23 +67,21 @@ Responsabilités :
 - calculer les embeddings ;
 - créer ou charger un index FAISS ;
 - créer un index BM25 ;
-- effectuer la recherche dense ;
-- effectuer la recherche sparse ;
-- fusionner les scores ;
+- effectuer la recherche dense seule (`faiss`) ;
+- effectuer la recherche sparse seule (`bm25`) ;
+- fusionner les scores (`hybrid`) ;
 - booster légèrement les chunks dont le `block_type` ou la section correspond à l’intention de la question ;
-- appliquer un reranker optionnel ;
+- appliquer un reranker avec le mode `hybrid_reranker` ;
 - sauvegarder `index.faiss` et `metadata.pkl`.
 
 Flux de recherche :
 
 ```text
 query
-  -> embedding query
-  -> dense FAISS search
-  -> BM25 search
-  -> score normalization
-  -> weighted fusion + metadata boost
-  -> reranking
+  -> retrieval mode: faiss | bm25 | hybrid | hybrid_reranker
+  -> optional score normalization/fusion
+  -> optional metadata boost
+  -> optional reranking
   -> top chunks
 ```
 
@@ -91,6 +89,7 @@ Paramètres importants :
 
 - `BM25_WEIGHT`
 - `DENSE_WEIGHT`
+- `RETRIEVAL_MODE`
 - `RETRIEVAL_TOP_K`
 - `RERANK_TOP_N`
 - `USE_RERANKER`

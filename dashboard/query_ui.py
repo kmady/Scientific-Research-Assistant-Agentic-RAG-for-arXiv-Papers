@@ -10,6 +10,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from agentic_rag.evaluator import RAGEvaluator
 from agentic_rag.orchestrator import AgenticOrchestrator
+from agentic_rag import config
 
 
 st.set_page_config(
@@ -20,8 +21,8 @@ st.set_page_config(
 
 
 @st.cache_resource
-def get_orchestrator() -> AgenticOrchestrator:
-    return AgenticOrchestrator()
+def get_orchestrator(retrieval_mode: str) -> AgenticOrchestrator:
+    return AgenticOrchestrator(retrieval_mode=retrieval_mode)
 
 
 @st.cache_resource
@@ -70,6 +71,14 @@ def main() -> None:
         placeholder="Ask a scientific question about the indexed arXiv papers...",
     )
 
+    retrieval_mode = st.selectbox(
+        "Retrieval mode",
+        ["faiss", "bm25", "hybrid", "hybrid_reranker"],
+        index=["faiss", "bm25", "hybrid", "hybrid_reranker"].index(config.RETRIEVAL_MODE)
+        if config.RETRIEVAL_MODE in ["faiss", "bm25", "hybrid", "hybrid_reranker"]
+        else 3,
+    )
+
     cols = st.columns([1, 1, 4])
     run_query = cols[0].button("Ask", type="primary", use_container_width=True)
     run_eval = cols[1].checkbox("Evaluate")
@@ -82,7 +91,7 @@ def main() -> None:
         st.warning("Please enter a prompt.")
         return
 
-    orchestrator = get_orchestrator()
+    orchestrator = get_orchestrator(retrieval_mode)
 
     with st.spinner("Running the agentic RAG pipeline..."):
         result = orchestrator.run(prompt.strip())
@@ -97,7 +106,7 @@ def main() -> None:
 
     with tabs[1]:
         with st.spinner("Retrieving supporting context..."):
-            chunks = orchestrator.vector_store.hybrid_search(prompt.strip(), top_k=8)
+            chunks = orchestrator.vector_store.search(prompt.strip(), top_k=8, mode=retrieval_mode)
         render_chunks(chunks)
 
     with tabs[2]:

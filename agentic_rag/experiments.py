@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, List
 from agentic_rag import config
 from agentic_rag.evaluator import RAGEvaluator
 from agentic_rag.orchestrator import AgenticOrchestrator
+from agentic_rag.vector_db import normalize_retrieval_mode
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,7 @@ def current_rag_config() -> Dict[str, Any]:
         "embedding_dim": config.EMBEDDING_DIM,
         "use_reranker": config.USE_RERANKER,
         "local_reranker_model": config.LOCAL_RERANKER_MODEL,
+        "retrieval_mode": config.RETRIEVAL_MODE,
         "bm25_weight": config.BM25_WEIGHT,
         "dense_weight": config.DENSE_WEIGHT,
         "retrieval_top_k": config.RETRIEVAL_TOP_K,
@@ -94,9 +96,10 @@ def summarize_results(records: List[Dict[str, Any]], experiment: str) -> Dict[st
 
 
 class ExperimentRunner:
-    def __init__(self, output_root: Path = Path("runs")):
+    def __init__(self, output_root: Path = Path("runs"), retrieval_mode: str | None = None):
         self.output_root = output_root
-        self.orchestrator = AgenticOrchestrator()
+        self.retrieval_mode = normalize_retrieval_mode(retrieval_mode).value
+        self.orchestrator = AgenticOrchestrator(retrieval_mode=self.retrieval_mode)
         self.evaluator = RAGEvaluator()
 
     def run(self, dataset_path: Path, experiment: str, limit: int | None = None) -> Dict[str, Any]:
@@ -111,6 +114,7 @@ class ExperimentRunner:
         config_snapshot.update({
             "experiment": experiment,
             "dataset_path": str(dataset_path),
+            "retrieval_mode": self.retrieval_mode,
             "started_at": datetime.now(timezone.utc).isoformat(),
         })
         write_json(output_dir / "config.json", config_snapshot)
@@ -125,7 +129,11 @@ class ExperimentRunner:
             rag_result = self.orchestrator.run(question)
             latency = time.perf_counter() - started
 
-            retrieved = self.orchestrator.vector_store.hybrid_search(question, top_k=config.RETRIEVAL_TOP_K)
+            retrieved = self.orchestrator.vector_store.search(
+                question,
+                top_k=config.RETRIEVAL_TOP_K,
+                mode=self.retrieval_mode,
+            )
             evaluation = self.evaluator.evaluate(question, retrieved, rag_result.get("answer", ""))
 
             record = {
@@ -147,6 +155,7 @@ class ExperimentRunner:
                         "page_start": c.get("page_start"),
                         "page_end": c.get("page_end"),
                         "chunk_index": c.get("chunk_index"),
+                        "retrieval_mode": c.get("retrieval_mode", self.retrieval_mode),
                         "hybrid_score": c.get("hybrid_score"),
                         "base_hybrid_score": c.get("base_hybrid_score"),
                         "metadata_boost": c.get("metadata_boost"),

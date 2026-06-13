@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from agentic_rag.orchestrator import AgenticOrchestrator
+from agentic_rag.vector_db import normalize_retrieval_mode
 
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,7 @@ app = FastAPI(
 class QueryRequest(BaseModel):
     prompt: str = Field(..., min_length=1)
     include_steps: bool = True
+    retrieval_mode: Optional[str] = None
 
 
 class QueryResponse(BaseModel):
@@ -39,9 +41,9 @@ class IngestResponse(BaseModel):
     failures: List[Dict[str, str]]
 
 
-@lru_cache(maxsize=1)
-def get_orchestrator() -> AgenticOrchestrator:
-    return AgenticOrchestrator()
+@lru_cache(maxsize=8)
+def get_orchestrator(retrieval_mode: str) -> AgenticOrchestrator:
+    return AgenticOrchestrator(retrieval_mode=retrieval_mode)
 
 
 @app.get("/health")
@@ -51,7 +53,7 @@ def health() -> Dict[str, str]:
 
 @app.get("/ready")
 def ready() -> Dict[str, Any]:
-    orchestrator = get_orchestrator()
+    orchestrator = get_orchestrator(normalize_retrieval_mode(None).value)
     return {
         "status": "ready",
         "indexed_papers": orchestrator.vector_store.get_indexed_arxiv_ids(),
@@ -61,7 +63,12 @@ def ready() -> Dict[str, Any]:
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest) -> QueryResponse:
     try:
-        result = get_orchestrator().run(request.prompt)
+        retrieval_mode = normalize_retrieval_mode(request.retrieval_mode).value
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
+        result = get_orchestrator(retrieval_mode).run(request.prompt)
     except Exception as exc:
         logger.exception("Query failed")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -76,7 +83,7 @@ def query(request: QueryRequest) -> QueryResponse:
 
 @app.post("/ingest", response_model=IngestResponse)
 def ingest(request: IngestRequest) -> IngestResponse:
-    orchestrator = get_orchestrator()
+    orchestrator = get_orchestrator(normalize_retrieval_mode(None).value)
     ingested = 0
     failures: List[Dict[str, str]] = []
 

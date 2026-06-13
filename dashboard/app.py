@@ -104,6 +104,7 @@ def render_chunks(chunks: List[Dict[str, Any]]) -> None:
             "rank": index,
             "arxiv_id": chunk.get("arxiv_id", ""),
             "section": chunk.get("section", ""),
+            "retrieval_mode": chunk.get("retrieval_mode", ""),
             "block_type": chunk.get("block_type", "paragraph"),
             "pages": f"{chunk.get('page_start', '')}-{chunk.get('page_end', '')}",
             "hybrid_score": chunk.get("hybrid_score"),

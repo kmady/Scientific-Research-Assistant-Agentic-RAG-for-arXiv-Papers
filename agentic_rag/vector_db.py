@@ -3,6 +3,7 @@ import re
 import pickle
 import logging
 import numpy as np
+from enum import Enum
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 from rank_bm25 import BM25Okapi
@@ -36,6 +37,22 @@ DEFINITION_FRIENDLY_SECTIONS = {
 
 BLOCK_TYPE_BOOST = 0.15
 SECTION_TYPE_BOOST = 0.05
+
+
+class RetrievalMode(str, Enum):
+    FAISS = "faiss"
+    BM25 = "bm25"
+    HYBRID = "hybrid"
+    HYBRID_RERANKER = "hybrid_reranker"
+
+
+def normalize_retrieval_mode(mode: str | RetrievalMode | None) -> RetrievalMode:
+    raw_mode = mode or config.RETRIEVAL_MODE
+    try:
+        return RetrievalMode(str(raw_mode).lower())
+    except ValueError as exc:
+        valid = ", ".join(item.value for item in RetrievalMode)
+        raise ValueError(f"Invalid retrieval mode '{raw_mode}'. Expected one of: {valid}") from exc
 
 # Try to import FAISS; if it fails, we will fall back to numpy-based similarity
 try:
@@ -125,8 +142,15 @@ class RerankerEngine:
             self._model = CrossEncoder(self.model_name)
         return self._model
 
-    def rerank(self, query: str, chunks: List[Dict[str, Any]], top_n: int) -> List[Dict[str, Any]]:
-        if not self.use_reranker or not chunks:
+    def rerank(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        top_n: int,
+        enabled: bool | None = None,
+    ) -> List[Dict[str, Any]]:
+        should_rerank = self.use_reranker if enabled is None else enabled
+        if not should_rerank or not chunks:
             return chunks[:top_n]
 
         try:
@@ -325,8 +349,42 @@ class VectorStore:
                 results.append((int(idx), float(scores[idx])))
         return results
 
-    def hybrid_search(self, query: str, top_k: int = config.RETRIEVAL_TOP_K) -> List[Dict[str, Any]]:
-        """Combines BM25 and Vector Search scores (Hybrid Search) followed by Reranking."""
+    def _result_chunk(self, idx: int, mode: RetrievalMode, **scores: float) -> Dict[str, Any]:
+        chunk_copy = self.chunks[idx].copy()
+        chunk_copy["retrieval_mode"] = mode.value
+        for key, value in scores.items():
+            chunk_copy[key] = value
+        return chunk_copy
+
+    def _search_faiss_chunks(self, query: str, top_k: int) -> List[Dict[str, Any]]:
+        query_vec = self.embedder.embed_queries([query])[0]
+        dense_results = self.search_dense(query_vec, top_k=top_k)
+        return [
+            self._result_chunk(
+                idx,
+                RetrievalMode.FAISS,
+                dense_score=score,
+                hybrid_score=score,
+                metadata_boost=0.0,
+            )
+            for idx, score in dense_results
+        ]
+
+    def _search_bm25_chunks(self, query: str, top_k: int) -> List[Dict[str, Any]]:
+        sparse_results = self.search_sparse(query, top_k=top_k)
+        return [
+            self._result_chunk(
+                idx,
+                RetrievalMode.BM25,
+                sparse_score=score,
+                hybrid_score=score,
+                metadata_boost=0.0,
+            )
+            for idx, score in sparse_results
+        ]
+
+    def _search_hybrid_chunks(self, query: str, top_k: int, rerank: bool) -> List[Dict[str, Any]]:
+        mode = RetrievalMode.HYBRID_RERANKER if rerank else RetrievalMode.HYBRID
         if not self.chunks:
             return []
 
@@ -367,23 +425,50 @@ class VectorStore:
             metadata_boost = self._metadata_boost(query, self.chunks[idx])
             boosted_score = hybrid_score + metadata_boost
             
-            chunk_copy = self.chunks[idx].copy()
-            chunk_copy["hybrid_score"] = boosted_score
-            chunk_copy["base_hybrid_score"] = hybrid_score
-            chunk_copy["metadata_boost"] = metadata_boost
-            chunk_copy["dense_score"] = d_score
-            chunk_copy["sparse_score"] = s_score
+            chunk_copy = self._result_chunk(
+                idx,
+                mode,
+                hybrid_score=boosted_score,
+                base_hybrid_score=hybrid_score,
+                metadata_boost=metadata_boost,
+                dense_score=d_score,
+                sparse_score=s_score,
+            )
             scored_chunks.append(chunk_copy)
             
         # Sort by hybrid score
         scored_chunks = sorted(scored_chunks, key=lambda x: x["hybrid_score"], reverse=True)
         candidate_chunks = scored_chunks[:top_k]
 
-        # 4. Reranking
+        if not rerank:
+            return candidate_chunks
+
         logger.info(f"Reranking top {len(candidate_chunks)} candidate chunks using {self.reranker.model_name}...")
-        reranked_chunks = self.reranker.rerank(query, candidate_chunks, top_n=config.RERANK_TOP_N)
-        
-        return reranked_chunks
+        return self.reranker.rerank(query, candidate_chunks, top_n=config.RERANK_TOP_N, enabled=True)
+
+    def search(
+        self,
+        query: str,
+        top_k: int = config.RETRIEVAL_TOP_K,
+        mode: str | RetrievalMode | None = None,
+    ) -> List[Dict[str, Any]]:
+        """Search chunks using one of the comparable retrieval modes."""
+        retrieval_mode = normalize_retrieval_mode(mode)
+
+        if retrieval_mode == RetrievalMode.FAISS:
+            return self._search_faiss_chunks(query, top_k)
+        if retrieval_mode == RetrievalMode.BM25:
+            return self._search_bm25_chunks(query, top_k)
+        if retrieval_mode == RetrievalMode.HYBRID:
+            return self._search_hybrid_chunks(query, top_k, rerank=False)
+        if retrieval_mode == RetrievalMode.HYBRID_RERANKER:
+            return self._search_hybrid_chunks(query, top_k, rerank=True)
+
+        raise AssertionError(f"Unhandled retrieval mode: {retrieval_mode}")
+
+    def hybrid_search(self, query: str, top_k: int = config.RETRIEVAL_TOP_K) -> List[Dict[str, Any]]:
+        """Backward-compatible entrypoint for the historical hybrid + reranker path."""
+        return self.search(query, top_k=top_k, mode=RetrievalMode.HYBRID_RERANKER)
 
     def save(self):
         """Saves vector store indices and metadata to disk."""

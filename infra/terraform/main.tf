@@ -360,6 +360,7 @@ resource "aws_ecs_task_definition" "app" {
       { name = "METRICS_PORT", value = "8000" },
       { name = "LLM_PROVIDER", value = var.llm_provider },
       { name = "EMBEDDING_PROVIDER", value = var.embedding_provider },
+      { name = "RETRIEVAL_MODE", value = "hybrid" },
       { name = "USE_RERANKER", value = "false" }
     ]
 

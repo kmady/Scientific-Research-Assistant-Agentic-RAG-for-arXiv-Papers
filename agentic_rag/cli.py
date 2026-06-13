@@ -130,7 +130,7 @@ def handle_query(args):
     from agentic_rag.orchestrator import AgenticOrchestrator
 
     console = get_console()
-    orchestrator = AgenticOrchestrator()
+    orchestrator = AgenticOrchestrator(retrieval_mode=args.retrieval_mode)
     
     if console:
         console.print(f"\n[bold yellow]Analyzing and Synthesizing Answer for:[/bold yellow]\n[white]{args.prompt}[/white]\n")
@@ -168,7 +168,7 @@ def handle_query(args):
             evaluator = RAGEvaluator()
             
             # Fetch retrieved context chunks matching the prompt to evaluate the triad
-            retrieved = orchestrator.vector_store.hybrid_search(args.prompt, top_k=5)
+            retrieved = orchestrator.vector_store.search(args.prompt, top_k=5, mode=args.retrieval_mode)
             eval_results = evaluator.evaluate(args.prompt, retrieved, result["answer"])
             
             report = evaluator.generate_report_markdown(args.prompt, retrieved, result["answer"], eval_results)
@@ -176,7 +176,7 @@ def handle_query(args):
         else:
             print("Evaluation requested but rich not available. Raw results:")
             evaluator = RAGEvaluator()
-            retrieved = orchestrator.vector_store.hybrid_search(args.prompt, top_k=5)
+            retrieved = orchestrator.vector_store.search(args.prompt, top_k=5, mode=args.retrieval_mode)
             eval_results = evaluator.evaluate(args.prompt, retrieved, result["answer"])
             print(json.dumps(eval_results, indent=2))
 
@@ -184,7 +184,7 @@ def handle_eval_run(args):
     from agentic_rag.experiments import ExperimentRunner
 
     console = get_console()
-    runner = ExperimentRunner()
+    runner = ExperimentRunner(retrieval_mode=args.retrieval_mode)
     dataset_path = Path(args.dataset)
 
     if console:
@@ -233,12 +233,24 @@ def main():
     parser_query = subparsers.add_parser("query", help="Ask the Agentic RAG assistant a question")
     parser_query.add_argument("--prompt", type=str, required=True, help="Your research question")
     parser_query.add_argument("--evaluate", action="store_true", help="Run RAG Triad evaluation on the answer")
+    parser_query.add_argument(
+        "--retrieval-mode",
+        choices=["faiss", "bm25", "hybrid", "hybrid_reranker"],
+        default=None,
+        help="Retrieval mode override. Defaults to RETRIEVAL_MODE from environment.",
+    )
 
     # Evaluation experiment sub-command
     parser_eval = subparsers.add_parser("eval-run", help="Run a RAG evaluation dataset and save experiment results")
     parser_eval.add_argument("--dataset", type=str, default="data/eval/questions.jsonl", help="Path to JSONL evaluation dataset")
     parser_eval.add_argument("--experiment", type=str, required=True, help="Experiment name, e.g. baseline or improved_v1")
     parser_eval.add_argument("--limit", type=int, help="Optional max number of questions to run")
+    parser_eval.add_argument(
+        "--retrieval-mode",
+        choices=["faiss", "bm25", "hybrid", "hybrid_reranker"],
+        default=None,
+        help="Retrieval mode override. Defaults to RETRIEVAL_MODE from environment.",
+    )
     
     args = parser.parse_args()
     

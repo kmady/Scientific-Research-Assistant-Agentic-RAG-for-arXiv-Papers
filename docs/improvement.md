@@ -99,6 +99,26 @@ Utiliser les sections détectées pour favoriser certains passages :
 - `Limitations` pour les limites ;
 - `Abstract` et `Introduction` pour les résumés.
 
+### Retrieval Modes
+
+Les expériences peuvent maintenant forcer un mode retrieval :
+
+```text
+faiss
+bm25
+hybrid
+hybrid_reranker
+```
+
+Cela permet de comparer proprement :
+
+```bash
+python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment faiss_v1 --retrieval-mode faiss
+python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment bm25_v1 --retrieval-mode bm25
+python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment hybrid_v1 --retrieval-mode hybrid
+python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment hybrid_reranker_v1 --retrieval-mode hybrid_reranker
+```
+
 ### Block-Aware Retrieval
 
 Le parser extrait aussi les blocs importants des articles scientifiques :

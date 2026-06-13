@@ -284,6 +284,35 @@ Si le parser ou le chunking change, réingérez les papiers pour mettre à jour 
 
 ---
 
+## Comparer les Modes de Retrieval
+
+Le retrieval peut être forcé avec `RETRIEVAL_MODE` ou `--retrieval-mode` :
+
+```text
+faiss
+bm25
+hybrid
+hybrid_reranker
+```
+
+Exemple :
+
+```bash
+.venv/bin/python -m agentic_rag.cli eval-run \
+  --dataset data/eval/questions.jsonl \
+  --experiment hybrid_reranker_v1 \
+  --retrieval-mode hybrid_reranker \
+  --limit 1
+```
+
+Cela prépare l’étude comparative :
+
+```text
+FAISS seul -> BM25 seul -> Hybrid -> Hybrid + Reranker
+```
+
+---
+
 ## Données Déjà Présentes
 
 Le projet contient déjà un article arXiv indexé pour faciliter les premiers tests :

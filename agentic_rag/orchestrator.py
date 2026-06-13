@@ -7,6 +7,7 @@ from agentic_rag.llm import get_llm_client, LLMClient
 from agentic_rag.search import ArxivSearchAgent
 from agentic_rag.pdf_parser import PDFProcessor
 from agentic_rag.vector_db import VectorStore
+from agentic_rag.vector_db import normalize_retrieval_mode
 from agentic_rag import monitoring
 from agentic_rag.logging_config import setup_logging
 from agentic_rag import tracing
@@ -48,7 +49,9 @@ INSTRUCTIONS:
 """
 
 class AgenticOrchestrator:
-    def __init__(self):
+    def __init__(self, retrieval_mode: str | None = None):
+        self.retrieval_mode = normalize_retrieval_mode(retrieval_mode).value
+
         # Configure structured JSON logging
         try:
             setup_logging()
@@ -188,7 +191,7 @@ class AgenticOrchestrator:
                 elif action == "retrieve_context":
                     query = action_input.get("query", "")
                     top_k = int(action_input.get("top_k", 8))
-                    retrieved_chunks = self.vector_store.hybrid_search(query, top_k=top_k)
+                    retrieved_chunks = self.vector_store.search(query, top_k=top_k, mode=self.retrieval_mode)
                     
                     formatted_chunks = []
                     for c in retrieved_chunks:
