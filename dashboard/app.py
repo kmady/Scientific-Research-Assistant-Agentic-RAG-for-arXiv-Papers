@@ -168,6 +168,44 @@ def render_config_view(experiments: List[Dict[str, Any]]) -> None:
     st.json(experiment.get("config", {}))
 
 
+def render_benchmark_view(experiments: List[Dict[str, Any]]) -> None:
+    st.subheader("Benchmark Comparisons")
+    comparisons = [
+        experiment
+        for experiment in experiments
+        if experiment.get("comparison", {}).get("results")
+    ]
+    if not comparisons:
+        st.caption("No benchmark comparison files found.")
+        return
+
+    names = [experiment["name"] for experiment in comparisons]
+    selected = st.selectbox("Benchmark", names)
+    benchmark = next(item for item in comparisons if item["name"] == selected)
+    comparison = benchmark["comparison"]
+
+    rows = comparison.get("results", [])
+    display_columns = [
+        "retrieval_mode",
+        "experiment",
+        "questions",
+        "overall_rag_score",
+        "avg_context_relevance",
+        "avg_groundedness",
+        "avg_answer_relevance",
+        "avg_latency_seconds",
+    ]
+    st.dataframe(
+        pd.DataFrame(rows)[[column for column in display_columns if column in pd.DataFrame(rows).columns]],
+        use_container_width=True,
+        hide_index=True,
+    )
+    best = comparison.get("best_by_overall_rag_score")
+    if best:
+        st.markdown("**Best overall**")
+        st.json(best)
+
+
 def main() -> None:
     experiments_available = discover_experiments(RUNS_DIR)
     if not experiments_available:
@@ -196,6 +234,7 @@ def main() -> None:
         "Questions",
         "Answer Inspection",
         "Configuration",
+        "Benchmarks",
     ])
 
     with tabs[0]:
@@ -212,6 +251,9 @@ def main() -> None:
 
     with tabs[3]:
         render_config_view(experiments)
+
+    with tabs[4]:
+        render_benchmark_view(experiments)
 
 
 if __name__ == "__main__":

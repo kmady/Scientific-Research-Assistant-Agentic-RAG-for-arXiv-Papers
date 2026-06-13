@@ -49,6 +49,7 @@ def load_experiment(runs_dir: Path, experiment: str) -> Dict[str, Any]:
         "name": experiment,
         "path": experiment_dir,
         "summary": read_json(experiment_dir / "summary.json"),
+        "comparison": read_json(experiment_dir / "comparison.json"),
         "config": read_json(experiment_dir / "config.json"),
         "results": read_jsonl(experiment_dir / "results.jsonl"),
     }

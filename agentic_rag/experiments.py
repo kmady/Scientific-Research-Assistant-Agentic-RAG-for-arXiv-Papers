@@ -174,5 +174,6 @@ class ExperimentRunner:
 
         append_jsonl(output_dir / "results.jsonl", records)
         summary = summarize_results(records, experiment)
+        summary["retrieval_mode"] = self.retrieval_mode
         write_json(output_dir / "summary.json", summary)
         return summary

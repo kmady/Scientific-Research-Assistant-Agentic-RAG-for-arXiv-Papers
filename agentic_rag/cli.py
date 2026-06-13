@@ -212,6 +212,52 @@ def handle_eval_run(args):
         print(json.dumps(summary, indent=2))
         print(f"Saved results to runs/{args.experiment}/")
 
+def handle_benchmark(args):
+    from agentic_rag.benchmark import BenchmarkRunner, parse_modes
+
+    console = get_console()
+    runner = BenchmarkRunner()
+    dataset_path = Path(args.dataset)
+    modes = parse_modes(args.modes)
+
+    if console:
+        console.print(
+            f"[bold yellow]Running retrieval benchmark:[/bold yellow] "
+            f"[white]{args.experiment}[/white]"
+        )
+        console.print(f"[cyan]Modes:[/cyan] {', '.join(modes)}")
+        with console.status("[bold green]Executing benchmark modes..."):
+            comparison = runner.run(dataset_path, args.experiment, modes=modes, limit=args.limit)
+    else:
+        print(f"Running retrieval benchmark: {args.experiment}")
+        print(f"Modes: {', '.join(modes)}")
+        comparison = runner.run(dataset_path, args.experiment, modes=modes, limit=args.limit)
+
+    results = comparison.get("results", [])
+    if CONSOLE_AVAILABLE:
+        table = Table(title=f"Benchmark Summary: {args.experiment}", show_lines=True)
+        table.add_column("Mode", style="cyan")
+        table.add_column("Experiment", style="white")
+        table.add_column("Overall", style="bold white")
+        table.add_column("Groundedness", style="green")
+        table.add_column("Context", style="magenta")
+        table.add_column("Answer", style="blue")
+        table.add_column("Latency", style="yellow")
+        for row in results:
+            table.add_row(
+                row.get("retrieval_mode", ""),
+                row.get("experiment", ""),
+                f"{row.get('overall_rag_score', 0.0):.3f}",
+                f"{row.get('avg_groundedness', 0.0):.3f}",
+                f"{row.get('avg_context_relevance', 0.0):.3f}",
+                f"{row.get('avg_answer_relevance', 0.0):.3f}",
+                f"{row.get('avg_latency_seconds', 0.0):.3f}",
+            )
+        console.print(table)
+        console.print(f"[green]Saved comparison to runs/{args.experiment}/comparison.json[/green]")
+    else:
+        print(json.dumps(comparison, indent=2))
+
 def main():
     print_banner()
     
@@ -251,6 +297,18 @@ def main():
         default=None,
         help="Retrieval mode override. Defaults to RETRIEVAL_MODE from environment.",
     )
+
+    # Benchmark sub-command
+    parser_benchmark = subparsers.add_parser("benchmark", help="Run the same evaluation across retrieval modes")
+    parser_benchmark.add_argument("--dataset", type=str, default="data/eval/questions.jsonl", help="Path to JSONL evaluation dataset")
+    parser_benchmark.add_argument("--experiment", type=str, required=True, help="Benchmark name, e.g. retrieval_study_v1")
+    parser_benchmark.add_argument("--limit", type=int, help="Optional max number of questions per mode")
+    parser_benchmark.add_argument(
+        "--modes",
+        type=str,
+        default="faiss,bm25,hybrid,hybrid_reranker",
+        help="Comma-separated retrieval modes to compare.",
+    )
     
     args = parser.parse_args()
     
@@ -262,6 +320,8 @@ def main():
         handle_query(args)
     elif args.command == "eval-run":
         handle_eval_run(args)
+    elif args.command == "benchmark":
+        handle_benchmark(args)
 
 if __name__ == "__main__":
     main()

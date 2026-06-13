@@ -119,6 +119,15 @@ python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experim
 python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment hybrid_reranker_v1 --retrieval-mode hybrid_reranker
 ```
 
+La commande dédiée lance tous les modes et écrit une comparaison :
+
+```bash
+python -m agentic_rag.cli benchmark \
+  --dataset data/eval/questions.jsonl \
+  --experiment retrieval_study_v1 \
+  --limit 1
+```
+
 ### Block-Aware Retrieval
 
 Le parser extrait aussi les blocs importants des articles scientifiques :

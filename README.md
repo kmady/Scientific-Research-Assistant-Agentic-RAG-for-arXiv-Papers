@@ -311,6 +311,25 @@ Cela prépare l’étude comparative :
 FAISS seul -> BM25 seul -> Hybrid -> Hybrid + Reranker
 ```
 
+Commande benchmark tout-en-un :
+
+```bash
+.venv/bin/python -m agentic_rag.cli benchmark \
+  --dataset data/eval/questions.jsonl \
+  --experiment retrieval_study_v1 \
+  --limit 1
+```
+
+Cette commande crée :
+
+```text
+runs/retrieval_study_v1/comparison.json
+runs/retrieval_study_v1_faiss/
+runs/retrieval_study_v1_bm25/
+runs/retrieval_study_v1_hybrid/
+runs/retrieval_study_v1_hybrid_reranker/
+```
+
 ---
 
 ## Données Déjà Présentes

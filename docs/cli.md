@@ -119,6 +119,18 @@ Comparer les quatre modes :
 .venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment hybrid_reranker_v1 --retrieval-mode hybrid_reranker
 ```
 
+Ou lancer un benchmark complet :
+
+```bash
+.venv/bin/python -m agentic_rag.cli benchmark \
+  --dataset data/eval/questions.jsonl \
+  --experiment retrieval_study_v1 \
+  --modes faiss,bm25,hybrid,hybrid_reranker \
+  --limit 1
+```
+
+Le benchmark crée un `comparison.json` et un dossier d’expérience par mode.
+
 ## Commandes Fréquentes
 
 ```bash
@@ -136,4 +148,7 @@ Comparer les quatre modes :
 
 # Expérience
 .venv/bin/python -m agentic_rag.cli eval-run --dataset data/eval/questions.jsonl --experiment baseline --retrieval-mode hybrid_reranker
+
+# Benchmark retrieval
+.venv/bin/python -m agentic_rag.cli benchmark --dataset data/eval/questions.jsonl --experiment retrieval_study_v1 --limit 1
 ```
