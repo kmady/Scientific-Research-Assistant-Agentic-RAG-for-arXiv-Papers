@@ -7,7 +7,7 @@ load_dotenv()
 
 # Base directories
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
 PDF_DIR = DATA_DIR / "pdfs"
 CACHE_DIR = DATA_DIR / "cache"
 INDEX_DIR = DATA_DIR / "vector_store"
@@ -41,3 +41,6 @@ RERANK_TOP_N = int(os.getenv("RERANK_TOP_N", "8"))       # Pass top N to the LLM
 # Chunking Parameters
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
+
+# Runtime
+METRICS_PORT = int(os.getenv("METRICS_PORT", "8000"))

@@ -175,6 +175,7 @@ La documentation détaillée se trouve dans [docs/](docs/README.md).
 - [Données locales et index](docs/data.md)
 - [Améliorer la qualité du RAG](docs/improvement.md)
 - [Dépannage](docs/troubleshooting.md)
+- [Déploiement AWS staging](docs/aws_deployment.md)
 - [Guide de monitoring](MONITORING_GUIDE.md)
 
 ---
