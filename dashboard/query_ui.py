@@ -51,7 +51,8 @@ def render_chunks(chunks: List[Dict[str, Any]]) -> None:
     for index, chunk in enumerate(chunks, start=1):
         section = chunk.get("section", "Unknown section")
         arxiv_id = chunk.get("arxiv_id", "unknown")
-        label = f"{index}. {arxiv_id} | {section}"
+        block_type = chunk.get("block_type", "paragraph")
+        label = f"{index}. {arxiv_id} | {section} | {block_type}"
         with st.expander(label):
             st.caption(
                 f"{chunk.get('title', '')} | "

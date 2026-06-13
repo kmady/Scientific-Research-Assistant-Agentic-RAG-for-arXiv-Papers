@@ -12,8 +12,13 @@ logger = logging.getLogger(__name__)
 COMMON_SECTIONS = [
     "abstract", "introduction", "related work", "background",
     "methodology", "method", "proposed method", "approach",
-    "experiments", "experimental setup", "evaluation", "results",
+    "preliminaries", "definitions", "experiments", "experimental setup", "evaluation", "results",
     "discussion", "conclusion", "references", "future work", "limitations"
+]
+
+IMPORTANT_BLOCKS = [
+    "definition", "example", "theorem", "proposition",
+    "lemma", "remark", "corollary", "notation"
 ]
 
 class PDFProcessor:
@@ -156,9 +161,72 @@ class PDFProcessor:
             
         return sections
 
-    def chunk_section(self, section: Dict[str, Any], paper_metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Splits a large section into overlapping chunks while maintaining context."""
+    def detect_block_type(self, text: str) -> str:
+        """Detect semantic math/science blocks such as Definition, Theorem, Example."""
+        clean_text = text.strip().lower()
+        if not clean_text:
+            return "paragraph"
+
+        for block_type in IMPORTANT_BLOCKS:
+            pattern = rf"^{block_type}\b(?:\s+[0-9ivxlc]+(?:\.[0-9]+)*\.?)?(?:\s|\:|\.|\(|$)"
+            if re.match(pattern, clean_text):
+                return block_type
+
+        return "paragraph"
+
+    def split_section_into_blocks(self, section: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Split a section into semantic blocks before regular size-based chunking."""
         text = section["text"]
+        lines = text.splitlines()
+        blocks = []
+        current_lines = []
+        current_type = "paragraph"
+
+        def flush_current() -> None:
+            nonlocal current_lines, current_type
+            block_text = "\n".join(current_lines).strip()
+            if block_text:
+                blocks.append({
+                    "block_type": current_type,
+                    "text": block_text
+                })
+            current_lines = []
+            current_type = "paragraph"
+
+        for line in lines:
+            stripped = line.strip()
+            if not stripped:
+                current_lines.append("")
+                continue
+
+            detected_type = self.detect_block_type(stripped)
+            if detected_type != "paragraph" and current_lines:
+                flush_current()
+
+            if detected_type != "paragraph":
+                current_type = detected_type
+
+            current_lines.append(stripped)
+
+        flush_current()
+
+        if not blocks and text.strip():
+            blocks.append({
+                "block_type": "paragraph",
+                "text": text.strip()
+            })
+
+        return blocks
+
+    def chunk_text_block(
+        self,
+        text: str,
+        section: Dict[str, Any],
+        paper_metadata: Dict[str, Any],
+        block_type: str,
+        block_index: int
+    ) -> List[Dict[str, Any]]:
+        """Splits a large section into overlapping chunks while maintaining context."""
         title = section["title"]
         page_start = section["page_start"]
         page_end = section["page_end"]
@@ -232,12 +300,33 @@ class PDFProcessor:
                 "title": paper_metadata["title"],
                 "authors": ", ".join(paper_metadata.get("authors", [])),
                 "section": title,
+                "block_type": block_type,
+                "block_index": block_index,
                 "page_start": page_start,
                 "page_end": page_end,
                 "chunk_index": i,
                 "text": chunk_text
             })
             
+        return final_chunks
+
+    def chunk_section(self, section: Dict[str, Any], paper_metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Splits a section into semantic blocks, then chunks each block by size."""
+        final_chunks = []
+        semantic_blocks = self.split_section_into_blocks(section)
+
+        for block_index, block in enumerate(semantic_blocks):
+            block_chunks = self.chunk_text_block(
+                block["text"],
+                section,
+                paper_metadata,
+                block["block_type"],
+                block_index
+            )
+            for chunk in block_chunks:
+                chunk["chunk_index"] = len(final_chunks)
+                final_chunks.append(chunk)
+
         return final_chunks
 
     def process_paper(self, pdf_path: Path, paper_metadata: Dict[str, Any]) -> List[Dict[str, Any]]:

@@ -11,6 +11,32 @@ from agentic_rag import config
 
 logger = logging.getLogger(__name__)
 
+BLOCK_QUERY_TERMS = {
+    "definition": {"definition", "definitions", "define", "defined", "meaning", "définition", "definir", "définir"},
+    "example": {"example", "examples", "exemple", "exemples"},
+    "theorem": {"theorem", "theorems", "théorème", "theoreme"},
+    "proposition": {"proposition", "propositions"},
+    "lemma": {"lemma", "lemmas", "lemme", "lemmes"},
+    "remark": {"remark", "remarks", "remarque", "remarques"},
+    "corollary": {"corollary", "corollaries", "corollaire", "corollaires"},
+    "notation": {"notation", "notations"},
+}
+
+DEFINITION_FRIENDLY_SECTIONS = {
+    "abstract",
+    "introduction",
+    "background",
+    "preliminaries",
+    "preliminary",
+    "definitions",
+    "definition",
+    "examples",
+    "example",
+}
+
+BLOCK_TYPE_BOOST = 0.15
+SECTION_TYPE_BOOST = 0.05
+
 # Try to import FAISS; if it fails, we will fall back to numpy-based similarity
 try:
     import faiss
@@ -161,12 +187,69 @@ class VectorStore:
     def _tokenize(self, text: str) -> List[str]:
         return re.findall(r'\w+', text.lower())
 
+    def _query_block_intents(self, query: str) -> set[str]:
+        tokens = set(self._tokenize(query))
+        intents = {
+            block_type
+            for block_type, terms in BLOCK_QUERY_TERMS.items()
+            if tokens.intersection(terms)
+        }
+
+        # "What is X?" questions are often definition-seeking even without the word "definition".
+        if re.search(r"\bwhat\s+(?:is|are)\b", query.lower()):
+            intents.add("definition")
+
+        return intents
+
+    def _metadata_boost(self, query: str, chunk: Dict[str, Any]) -> float:
+        intents = self._query_block_intents(query)
+        if not intents:
+            return 0.0
+
+        boost = 0.0
+        block_type = chunk.get("block_type", "paragraph")
+        section = chunk.get("section", "").lower()
+
+        if block_type in intents:
+            boost += BLOCK_TYPE_BOOST
+
+        if "definition" in intents and any(name in section for name in DEFINITION_FRIENDLY_SECTIONS):
+            boost += SECTION_TYPE_BOOST
+
+        return boost
+
     def add_chunks(self, new_chunks: List[Dict[str, Any]]):
         """Adds new chunks to the vector store, computes embeddings, and re-indexes."""
         if not new_chunks:
             return
             
         logger.info(f"Adding {len(new_chunks)} new chunks to Vector Store...")
+
+        incoming_ids = {c["arxiv_id"] for c in new_chunks}
+        if incoming_ids and self.chunks:
+            kept_chunks = []
+            kept_embedding_indices = []
+            removed_count = 0
+
+            for index, chunk in enumerate(self.chunks):
+                if chunk["arxiv_id"] in incoming_ids:
+                    removed_count += 1
+                    continue
+                kept_chunks.append(chunk)
+                kept_embedding_indices.append(index)
+
+            if removed_count:
+                logger.info(f"Replacing {removed_count} existing chunks for papers: {sorted(incoming_ids)}")
+                self.chunks = kept_chunks
+                if self.embeddings is not None:
+                    original_embedding_count = removed_count + len(kept_embedding_indices)
+                    if len(self.embeddings) == original_embedding_count:
+                        self.embeddings = self.embeddings[kept_embedding_indices] if kept_embedding_indices else None
+                    elif kept_chunks:
+                        logger.warning("Embedding count does not match metadata. Rebuilding kept embeddings.")
+                        self.embeddings = self.embedder.embed_documents([c["text"] for c in kept_chunks])
+                    else:
+                        self.embeddings = None
         
         # Avoid indexing duplicates
         existing_keys = {(c["arxiv_id"], c["section"], c["chunk_index"]) for c in self.chunks}
@@ -281,9 +364,13 @@ class VectorStore:
             
             # Hybrid fusion
             hybrid_score = (config.DENSE_WEIGHT * norm_d) + (config.BM25_WEIGHT * norm_s)
+            metadata_boost = self._metadata_boost(query, self.chunks[idx])
+            boosted_score = hybrid_score + metadata_boost
             
             chunk_copy = self.chunks[idx].copy()
-            chunk_copy["hybrid_score"] = hybrid_score
+            chunk_copy["hybrid_score"] = boosted_score
+            chunk_copy["base_hybrid_score"] = hybrid_score
+            chunk_copy["metadata_boost"] = metadata_boost
             chunk_copy["dense_score"] = d_score
             chunk_copy["sparse_score"] = s_score
             scored_chunks.append(chunk_copy)
@@ -326,6 +413,10 @@ class VectorStore:
                 data = pickle.load(f)
                 self.chunks = data.get("chunks", [])
                 self.embeddings = data.get("embeddings", None)
+
+            for chunk in self.chunks:
+                chunk.setdefault("block_type", "paragraph")
+                chunk.setdefault("block_index", 0)
                 
             # Load FAISS index if available and exists, otherwise rebuild it from embeddings
             if FAISS_AVAILABLE and self.index_file.exists():

@@ -196,6 +196,7 @@ class AgenticOrchestrator:
                             "arxiv_id": c["arxiv_id"],
                             "title": c["title"],
                             "section": c["section"],
+                            "block_type": c.get("block_type", "paragraph"),
                             "page": f"{c['page_start']}-{c['page_end']}",
                             "text": c["text"]
                         })

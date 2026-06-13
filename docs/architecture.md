@@ -39,7 +39,8 @@ Responsabilités :
 - extraire les blocs de texte avec taille de police, page et style ;
 - détecter les titres de section ;
 - regrouper le texte par section ;
-- découper les sections en chunks ;
+- détecter les blocs importants (`definition`, `example`, `theorem`, etc.) ;
+- découper les sections en chunks en préservant le type de bloc ;
 - conserver les métadonnées nécessaires aux citations.
 
 Sortie typique d’un chunk :
@@ -50,6 +51,8 @@ Sortie typique d’un chunk :
   "title": "Data-Centric Human Preference with Rationales for Direct Preference Alignment",
   "authors": "...",
   "section": "Introduction",
+  "block_type": "definition",
+  "block_index": 0,
   "page_start": 1,
   "page_end": 2,
   "chunk_index": 0,
@@ -67,6 +70,7 @@ Responsabilités :
 - effectuer la recherche dense ;
 - effectuer la recherche sparse ;
 - fusionner les scores ;
+- booster légèrement les chunks dont le `block_type` ou la section correspond à l’intention de la question ;
 - appliquer un reranker optionnel ;
 - sauvegarder `index.faiss` et `metadata.pkl`.
 
@@ -78,7 +82,7 @@ query
   -> dense FAISS search
   -> BM25 search
   -> score normalization
-  -> weighted fusion
+  -> weighted fusion + metadata boost
   -> reranking
   -> top chunks
 ```

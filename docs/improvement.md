@@ -99,6 +99,25 @@ Utiliser les sections détectées pour favoriser certains passages :
 - `Limitations` pour les limites ;
 - `Abstract` et `Introduction` pour les résumés.
 
+### Block-Aware Retrieval
+
+Le parser extrait aussi les blocs importants des articles scientifiques :
+
+```text
+definition, example, theorem, proposition, lemma, remark, corollary, notation
+```
+
+Chaque chunk peut contenir :
+
+```json
+{
+  "block_type": "definition",
+  "metadata_boost": 0.15
+}
+```
+
+Pour une question de définition, le retrieval favorise les chunks `definition` ainsi que les sections comme `Abstract`, `Introduction`, `Background`, `Preliminaries`, `Definitions` et `Examples`.
+
 ## Nommer les Expériences
 
 Utiliser des noms explicites :

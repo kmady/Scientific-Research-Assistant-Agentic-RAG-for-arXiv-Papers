@@ -104,14 +104,16 @@ def render_chunks(chunks: List[Dict[str, Any]]) -> None:
             "rank": index,
             "arxiv_id": chunk.get("arxiv_id", ""),
             "section": chunk.get("section", ""),
+            "block_type": chunk.get("block_type", "paragraph"),
             "pages": f"{chunk.get('page_start', '')}-{chunk.get('page_end', '')}",
             "hybrid_score": chunk.get("hybrid_score"),
+            "metadata_boost": chunk.get("metadata_boost"),
             "rerank_score": chunk.get("rerank_score"),
         })
     st.dataframe(pd.DataFrame(chunk_rows), use_container_width=True, hide_index=True)
 
     for index, chunk in enumerate(chunks, start=1):
-        label = f"Chunk {index}: {chunk.get('section', 'Unknown section')}"
+        label = f"Chunk {index}: {chunk.get('section', 'Unknown section')} | {chunk.get('block_type', 'paragraph')}"
         with st.expander(label):
             st.caption(f"{chunk.get('title', '')} | Page {chunk.get('page_start', '')}-{chunk.get('page_end', '')}")
             st.write(chunk.get("text", ""))
