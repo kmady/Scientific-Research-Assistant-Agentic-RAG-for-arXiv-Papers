@@ -313,6 +313,7 @@ Exemple :
   --dataset data/eval/questions.jsonl \
   --experiment hybrid_reranker_v1 \
   --retrieval-mode hybrid_reranker \
+  --evaluation-backend llm_judge \
   --limit 1
 ```
 
@@ -328,6 +329,7 @@ Commande benchmark tout-en-un :
 .venv/bin/python -m agentic_rag.cli benchmark \
   --dataset data/eval/questions.jsonl \
   --experiment retrieval_study_v1 \
+  --evaluation-backend llm_judge \
   --limit 1
 ```
 
@@ -345,6 +347,12 @@ Pendant l'exécution, Prometheus collecte aussi les métriques `retrieval_latenc
 `retrieval_requests_total`, `retrieved_chunks_count` et `reranker_latency_seconds`.
 Grafana permet donc de comparer les modes sur la qualité dans `runs/` et sur le coût
 d'exécution dans le dashboard observability.
+
+Le backend d'évaluation se configure avec `EVALUATION_BACKEND` ou
+`--evaluation-backend`. Le backend stable actuel est `llm_judge`. Les valeurs
+`ragas` et `deepeval` sont préparées comme intégrations optionnelles, mais elles
+nécessitent encore l'installation et le câblage des dépendances correspondantes
+avant une mesure finale publiable.
 
 ---
 

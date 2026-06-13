@@ -165,7 +165,7 @@ def handle_query(args):
     if args.evaluate:
         if console:
             console.print("[bold yellow]Running RAG Triad Evaluation...[/bold yellow]")
-            evaluator = RAGEvaluator()
+            evaluator = RAGEvaluator(backend=args.evaluation_backend)
             
             # Fetch retrieved context chunks matching the prompt to evaluate the triad
             retrieved = orchestrator.vector_store.search(args.prompt, top_k=5, mode=args.retrieval_mode)
@@ -175,7 +175,7 @@ def handle_query(args):
             rprint(Panel(Markdown(report), title="RAG Triad Evaluation Report", border_style="yellow"))
         else:
             print("Evaluation requested but rich not available. Raw results:")
-            evaluator = RAGEvaluator()
+            evaluator = RAGEvaluator(backend=args.evaluation_backend)
             retrieved = orchestrator.vector_store.search(args.prompt, top_k=5, mode=args.retrieval_mode)
             eval_results = evaluator.evaluate(args.prompt, retrieved, result["answer"])
             print(json.dumps(eval_results, indent=2))
@@ -184,7 +184,10 @@ def handle_eval_run(args):
     from agentic_rag.experiments import ExperimentRunner
 
     console = get_console()
-    runner = ExperimentRunner(retrieval_mode=args.retrieval_mode)
+    runner = ExperimentRunner(
+        retrieval_mode=args.retrieval_mode,
+        evaluation_backend=args.evaluation_backend,
+    )
     dataset_path = Path(args.dataset)
 
     if console:
@@ -227,11 +230,23 @@ def handle_benchmark(args):
         )
         console.print(f"[cyan]Modes:[/cyan] {', '.join(modes)}")
         with console.status("[bold green]Executing benchmark modes..."):
-            comparison = runner.run(dataset_path, args.experiment, modes=modes, limit=args.limit)
+            comparison = runner.run(
+                dataset_path,
+                args.experiment,
+                modes=modes,
+                limit=args.limit,
+                evaluation_backend=args.evaluation_backend,
+            )
     else:
         print(f"Running retrieval benchmark: {args.experiment}")
         print(f"Modes: {', '.join(modes)}")
-        comparison = runner.run(dataset_path, args.experiment, modes=modes, limit=args.limit)
+        comparison = runner.run(
+            dataset_path,
+            args.experiment,
+            modes=modes,
+            limit=args.limit,
+            evaluation_backend=args.evaluation_backend,
+        )
 
     results = comparison.get("results", [])
     if CONSOLE_AVAILABLE:
@@ -280,6 +295,12 @@ def main():
     parser_query.add_argument("--prompt", type=str, required=True, help="Your research question")
     parser_query.add_argument("--evaluate", action="store_true", help="Run RAG Triad evaluation on the answer")
     parser_query.add_argument(
+        "--evaluation-backend",
+        choices=["llm_judge", "ragas", "deepeval"],
+        default=None,
+        help="Evaluation backend override. Defaults to EVALUATION_BACKEND from environment.",
+    )
+    parser_query.add_argument(
         "--retrieval-mode",
         choices=["faiss", "bm25", "hybrid", "hybrid_reranker"],
         default=None,
@@ -297,6 +318,12 @@ def main():
         default=None,
         help="Retrieval mode override. Defaults to RETRIEVAL_MODE from environment.",
     )
+    parser_eval.add_argument(
+        "--evaluation-backend",
+        choices=["llm_judge", "ragas", "deepeval"],
+        default=None,
+        help="Evaluation backend override. Defaults to EVALUATION_BACKEND from environment.",
+    )
 
     # Benchmark sub-command
     parser_benchmark = subparsers.add_parser("benchmark", help="Run the same evaluation across retrieval modes")
@@ -308,6 +335,12 @@ def main():
         type=str,
         default="faiss,bm25,hybrid,hybrid_reranker",
         help="Comma-separated retrieval modes to compare.",
+    )
+    parser_benchmark.add_argument(
+        "--evaluation-backend",
+        choices=["llm_judge", "ragas", "deepeval"],
+        default=None,
+        help="Evaluation backend override. Defaults to EVALUATION_BACKEND from environment.",
     )
     
     args = parser.parse_args()

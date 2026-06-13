@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
+from agentic_rag.evaluator import normalize_evaluation_backend
 from agentic_rag.experiments import ExperimentRunner
 from agentic_rag.vector_db import RetrievalMode, normalize_retrieval_mode
 
@@ -51,9 +52,11 @@ class BenchmarkRunner:
         benchmark: str,
         modes: List[str],
         limit: int | None = None,
+        evaluation_backend: str | None = None,
     ) -> Dict[str, Any]:
         benchmark_dir = self.output_root / benchmark
         benchmark_dir.mkdir(parents=True, exist_ok=True)
+        evaluation_backend = normalize_evaluation_backend(evaluation_backend)
 
         mode_summaries = []
         for mode in modes:
@@ -64,6 +67,7 @@ class BenchmarkRunner:
             runner = ExperimentRunner(
                 output_root=self.output_root,
                 retrieval_mode=mode,
+                evaluation_backend=evaluation_backend,
             )
             summary = runner.run(dataset_path, experiment_name, limit=limit)
             summary["retrieval_mode"] = mode
@@ -76,6 +80,7 @@ class BenchmarkRunner:
             modes=modes,
             mode_summaries=mode_summaries,
             limit=limit,
+            evaluation_backend=evaluation_backend,
         )
         write_json(benchmark_dir / "comparison.json", comparison)
         write_json(benchmark_dir / "summary.json", comparison)
@@ -88,6 +93,7 @@ class BenchmarkRunner:
         modes: List[str],
         mode_summaries: List[Dict[str, Any]],
         limit: int | None,
+        evaluation_backend: str,
     ) -> Dict[str, Any]:
         ranked = sorted(
             mode_summaries,
@@ -101,6 +107,7 @@ class BenchmarkRunner:
             "dataset_path": str(dataset_path),
             "limit": limit,
             "modes": modes,
+            "evaluation_backend": evaluation_backend,
             "experiments": [summary["experiment"] for summary in mode_summaries],
             "best_by_overall_rag_score": best,
             "results": mode_summaries,

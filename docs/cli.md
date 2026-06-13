@@ -99,6 +99,7 @@ Options :
 | `--experiment` | Nom du dossier dans `runs/`. |
 | `--limit` | Nombre maximal de questions à exécuter. |
 | `--retrieval-mode` | `faiss`, `bm25`, `hybrid` ou `hybrid_reranker`. |
+| `--evaluation-backend` | `llm_judge`, `ragas` ou `deepeval`. |
 
 Exemple rapide sur une seule question :
 
@@ -107,7 +108,8 @@ Exemple rapide sur une seule question :
   --dataset data/eval/questions.jsonl \
   --experiment smoke_test \
   --limit 1 \
-  --retrieval-mode faiss
+  --retrieval-mode faiss \
+  --evaluation-backend llm_judge
 ```
 
 Comparer les quatre modes :
@@ -126,10 +128,14 @@ Ou lancer un benchmark complet :
   --dataset data/eval/questions.jsonl \
   --experiment retrieval_study_v1 \
   --modes faiss,bm25,hybrid,hybrid_reranker \
+  --evaluation-backend llm_judge \
   --limit 1
 ```
 
 Le benchmark crée un `comparison.json` et un dossier d’expérience par mode.
+Le backend `llm_judge` est opérationnel par défaut. `ragas` et `deepeval` sont
+des backends optionnels préparés pour l'étape suivante; ils signalent clairement
+les dépendances manquantes tant qu'ils ne sont pas câblés.
 
 ## Commandes Fréquentes
 

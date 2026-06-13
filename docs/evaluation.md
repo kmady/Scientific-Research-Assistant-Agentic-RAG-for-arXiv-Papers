@@ -14,6 +14,16 @@ Le fichier `agentic_rag/evaluator.py` implémente trois métriques principales.
 
 Le score global est la moyenne des trois scores.
 
+Le backend par défaut est :
+
+```text
+llm_judge
+```
+
+Il se configure avec `EVALUATION_BACKEND` ou `--evaluation-backend`.
+Les backends `ragas` et `deepeval` sont réservés comme intégrations optionnelles
+pour la suite de l'étude comparative.
+
 ## LLM-as-a-Judge
 
 L’évaluateur envoie au LLM :
@@ -64,7 +74,8 @@ Champs :
 ```bash
 .venv/bin/python -m agentic_rag.cli eval-run \
   --dataset data/eval/questions.jsonl \
-  --experiment baseline
+  --experiment baseline \
+  --evaluation-backend llm_judge
 ```
 
 Limiter à une question :
@@ -73,6 +84,7 @@ Limiter à une question :
 .venv/bin/python -m agentic_rag.cli eval-run \
   --dataset data/eval/questions.jsonl \
   --experiment smoke_test \
+  --evaluation-backend llm_judge \
   --limit 1
 ```
 
@@ -97,7 +109,8 @@ Snapshot de configuration :
 - modèle d’embeddings ;
 - poids BM25 / dense ;
 - paramètres de chunking ;
-- statut du reranker.
+- statut du reranker ;
+- backend d'évaluation.
 
 ### `results.jsonl`
 
@@ -120,6 +133,36 @@ Scores moyens :
 - `avg_groundedness`
 - `avg_answer_relevance`
 - `avg_latency_seconds`
+- `evaluation_backend`
+
+## RAGAS et DeepEval
+
+Le code accepte déjà :
+
+```bash
+.venv/bin/python -m agentic_rag.cli eval-run \
+  --dataset data/eval/questions.jsonl \
+  --experiment ragas_probe \
+  --evaluation-backend ragas \
+  --limit 1
+```
+
+et :
+
+```bash
+.venv/bin/python -m agentic_rag.cli eval-run \
+  --dataset data/eval/questions.jsonl \
+  --experiment deepeval_probe \
+  --evaluation-backend deepeval \
+  --limit 1
+```
+
+À ce stade, ces backends sont volontairement scaffoldés : si les dépendances ne
+sont pas installées ou si les métriques ne sont pas encore câblées, le résultat
+indique explicitement l'erreur dans `backend_error`. L'étape suivante consiste à
+ajouter les dépendances optionnelles et à mapper leurs scores vers les champs
+communs `context_relevance`, `groundedness`, `answer_relevance` et
+`overall_rag_score`.
 
 ## Comparer Deux Versions
 

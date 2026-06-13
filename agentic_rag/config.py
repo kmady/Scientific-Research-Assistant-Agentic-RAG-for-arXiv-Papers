@@ -39,6 +39,9 @@ DENSE_WEIGHT = float(os.getenv("DENSE_WEIGHT", "0.7"))
 RETRIEVAL_TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "30"))  # Retrieve top K candidates for reranking
 RERANK_TOP_N = int(os.getenv("RERANK_TOP_N", "8"))       # Pass top N to the LLM
 
+# Evaluation Configuration
+EVALUATION_BACKEND = os.getenv("EVALUATION_BACKEND", "llm_judge")  # llm_judge, ragas, deepeval
+
 # Chunking Parameters
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))

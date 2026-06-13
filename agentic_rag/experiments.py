@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
 from agentic_rag import config
-from agentic_rag.evaluator import RAGEvaluator
+from agentic_rag.evaluator import RAGEvaluator, normalize_evaluation_backend
 from agentic_rag.orchestrator import AgenticOrchestrator
 from agentic_rag.vector_db import normalize_retrieval_mode
 
@@ -56,6 +56,7 @@ def current_rag_config() -> Dict[str, Any]:
         "rerank_top_n": config.RERANK_TOP_N,
         "chunk_size": config.CHUNK_SIZE,
         "chunk_overlap": config.CHUNK_OVERLAP,
+        "evaluation_backend": config.EVALUATION_BACKEND,
     }
 
 
@@ -96,11 +97,17 @@ def summarize_results(records: List[Dict[str, Any]], experiment: str) -> Dict[st
 
 
 class ExperimentRunner:
-    def __init__(self, output_root: Path = Path("runs"), retrieval_mode: str | None = None):
+    def __init__(
+        self,
+        output_root: Path = Path("runs"),
+        retrieval_mode: str | None = None,
+        evaluation_backend: str | None = None,
+    ):
         self.output_root = output_root
         self.retrieval_mode = normalize_retrieval_mode(retrieval_mode).value
+        self.evaluation_backend = normalize_evaluation_backend(evaluation_backend)
         self.orchestrator = AgenticOrchestrator(retrieval_mode=self.retrieval_mode)
-        self.evaluator = RAGEvaluator()
+        self.evaluator = RAGEvaluator(backend=self.evaluation_backend)
 
     def run(self, dataset_path: Path, experiment: str, limit: int | None = None) -> Dict[str, Any]:
         questions = read_jsonl(dataset_path)
@@ -115,6 +122,7 @@ class ExperimentRunner:
             "experiment": experiment,
             "dataset_path": str(dataset_path),
             "retrieval_mode": self.retrieval_mode,
+            "evaluation_backend": self.evaluation_backend,
             "started_at": datetime.now(timezone.utc).isoformat(),
         })
         write_json(output_dir / "config.json", config_snapshot)
@@ -175,5 +183,6 @@ class ExperimentRunner:
         append_jsonl(output_dir / "results.jsonl", records)
         summary = summarize_results(records, experiment)
         summary["retrieval_mode"] = self.retrieval_mode
+        summary["evaluation_backend"] = self.evaluation_backend
         write_json(output_dir / "summary.json", summary)
         return summary
