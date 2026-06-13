@@ -1,5 +1,4 @@
 {
-  "dashboard": {
     "id": null,
     "uid": "agentic-rag-observability",
     "title": "Agentic RAG Observability",
@@ -11,7 +10,7 @@
       {
         "type": "timeseries",
         "title": "LLM p95 Latency",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
             "expr": "histogram_quantile(0.95, sum(rate(llm_latency_seconds_bucket[5m])) by (le, model))",
@@ -28,7 +27,7 @@
       {
         "type": "timeseries",
         "title": "Agent Loop Avg Latency",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
             "expr": "rate(agent_step_latency_seconds_sum[5m]) / rate(agent_step_latency_seconds_count[5m])",
@@ -45,7 +44,7 @@
       {
         "type": "stat",
         "title": "Total LLM Requests",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
             "expr": "sum(llm_requests_total)",
@@ -57,7 +56,7 @@
       {
         "type": "stat",
         "title": "Agent Steps",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
             "expr": "agent_loops_total",
@@ -69,7 +68,7 @@
       {
         "type": "timeseries",
         "title": "LLM Request Rate",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
             "expr": "rate(llm_requests_total[1m])",
@@ -81,7 +80,7 @@
       {
         "type": "timeseries",
         "title": "LLM Latency (All Calls)",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
             "expr": "llm_latency_seconds_sum / llm_latency_seconds_count",
@@ -98,7 +97,7 @@
       {
         "type": "timeseries",
         "title": "LLM Error Rate",
-        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
         "targets": [
           {
             "expr": "sum(rate(llm_requests_total{status=\"error\"}[5m])) by (model)",
@@ -108,6 +107,4 @@
         "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 }
       }
     ]
-  },
-  "overwrite": true
-}
+  }

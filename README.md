@@ -12,19 +12,72 @@ Son objectif principal est de montrer un RAG **mesurable et améliorable** : on 
 
 - Recherche et téléchargement d’articles arXiv.
 - Parsing de PDF scientifiques avec détection de sections.
-- Chunking avec métadonnées de citation.
+- Chunking avec métadonnées de citation et détection de blocs importants (`definition`, `example`, `theorem`, `lemma`, etc.).
 - Indexation locale FAISS + BM25.
-- Recherche hybride dense/sparse avec reranking optionnel.
+- Recherche hybride dense/sparse avec boost metadata et reranking optionnel.
 - Boucle agentique pilotée par un LLM.
 - Génération de réponses à partir du contexte récupéré.
 - Évaluation RAG Triad : context relevance, groundedness, answer relevance.
 - Runner d’expériences reproductibles.
 - Dashboard qualité pour comparer les versions.
 - UI simple pour écrire un prompt et voir la réponse.
+- Monitoring Prometheus + Grafana pour observer les métriques LLM et agent.
 
 ---
 
 ## Démarrage Rapide
+
+### Option recommandée : tout lancer avec `run.sh`
+
+Le script `run.sh` lance le flux complet :
+
+```text
+setup -> monitoring -> query évaluée -> eval-run -> dashboards Streamlit
+```
+
+Première exécution, si la venv n’existe pas encore :
+
+```bash
+./run.sh --install
+```
+
+Exécution rapide par défaut :
+
+```bash
+./run.sh
+```
+
+Par défaut, le script lance une évaluation courte avec `--limit 1` et l’expérience `smoke_test`.
+
+Variantes utiles :
+
+```bash
+# Évaluation complète
+./run.sh --full --experiment baseline
+
+# Évaluation courte avec un nom dédié
+./run.sh --limit 3 --experiment monitoring_test
+
+# Lancer sans dashboards Streamlit
+./run.sh --no-dashboards
+
+# Lancer sans monitoring Docker
+./run.sh --skip-monitoring
+```
+
+Services exposés :
+
+```text
+RAG Quality Dashboard: http://localhost:8501
+Query UI:               http://localhost:8502
+Grafana:                http://localhost:3000  admin/admin
+Prometheus:             http://localhost:9090
+Metrics app:            http://localhost:8000/metrics
+```
+
+---
+
+## Démarrage Manuel
 
 ### 1. Installer l’environnement
 
@@ -75,6 +128,26 @@ Par défaut, utilisez `LLM_PROVIDER=mock` pour vérifier le flux sans clé API. 
 .venv/bin/streamlit run dashboard/app.py
 ```
 
+### 8. Démarrer le monitoring Grafana/Prometheus
+
+```bash
+docker compose -f monitoring/docker-compose.yml up -d
+```
+
+Si votre machine utilise l’ancien Compose :
+
+```bash
+docker-compose -f monitoring/docker-compose.yml up -d
+```
+
+Le monitoring lit les métriques exposées par l’application sur :
+
+```text
+http://localhost:8000/metrics
+```
+
+Ce serveur de métriques démarre quand l’orchestrateur Python tourne, par exemple pendant `query`, `eval-run` ou l’UI Streamlit.
+
 ---
 
 ## Structure Courte
@@ -85,6 +158,7 @@ dashboard/         # Interfaces Streamlit
 data/              # PDF, index vectoriel, dataset d’évaluation
 docs/              # Documentation détaillée
 runs/              # Résultats d’expériences, ignorés par Git
+monitoring/        # Prometheus, Grafana, alerting rules
 ```
 
 ---
@@ -101,12 +175,16 @@ La documentation détaillée se trouve dans [docs/](docs/README.md).
 - [Données locales et index](docs/data.md)
 - [Améliorer la qualité du RAG](docs/improvement.md)
 - [Dépannage](docs/troubleshooting.md)
+- [Guide de monitoring](MONITORING_GUIDE.md)
 
 ---
 
 ## Exemple de Workflow
 
 ```bash
+# Réingérer un papier si le parser/chunking a changé
+.venv/bin/python -m agentic_rag.cli ingest --ids "2407.14477"
+
 # Créer une baseline
 .venv/bin/python -m agentic_rag.cli eval-run \
   --dataset data/eval/questions.jsonl \
@@ -121,6 +199,86 @@ La documentation détaillée se trouve dans [docs/](docs/README.md).
 
 # Comparer les résultats
 .venv/bin/streamlit run dashboard/app.py
+```
+
+---
+
+## Dashboards
+
+### RAG Quality Dashboard
+
+```bash
+.venv/bin/streamlit run dashboard/app.py
+```
+
+Ce dashboard lit les artefacts sauvegardés dans `runs/`. Il ne reflète pas automatiquement les changements de code : il faut relancer une évaluation pour créer un nouveau dossier d’expérience.
+
+Exemple :
+
+```bash
+.venv/bin/python -m agentic_rag.cli eval-run \
+  --dataset data/eval/questions.jsonl \
+  --experiment block_aware_v1 \
+  --limit 1
+```
+
+### Grafana Observability
+
+```bash
+docker compose -f monitoring/docker-compose.yml up -d
+```
+
+Puis ouvrir :
+
+```text
+http://localhost:3000
+```
+
+Login par défaut :
+
+```text
+admin / admin
+```
+
+Le dashboard principal est :
+
+```text
+Agentic RAG Observability
+```
+
+Prometheus est disponible sur :
+
+```text
+http://localhost:9090
+```
+
+---
+
+## Chunking Block-Aware
+
+Le parser PDF détecte maintenant des blocs scientifiques importants dans chaque section :
+
+```text
+definition, example, theorem, proposition, lemma, remark, corollary, notation
+```
+
+Chaque chunk peut contenir :
+
+```json
+{
+  "section": "Preliminaries",
+  "block_type": "definition",
+  "block_index": 0,
+  "metadata_boost": 0.15
+}
+```
+
+Pour les questions de définition, le retrieval favorise les chunks `definition` ainsi que les sections comme `Abstract`, `Introduction`, `Background`, `Preliminaries`, `Definitions` et `Examples`.
+
+Si le parser ou le chunking change, réingérez les papiers pour mettre à jour `data/vector_store/` :
+
+```bash
+.venv/bin/python -m agentic_rag.cli ingest --ids "2407.14477"
 ```
 
 ---
@@ -161,6 +319,12 @@ data/vector_store/metadata.pkl
 
 # Dashboard qualité
 .venv/bin/streamlit run dashboard/app.py
+
+# Monitoring
+docker compose -f monitoring/docker-compose.yml up -d
+
+# Tout lancer
+./run.sh
 ```
 
 ---
