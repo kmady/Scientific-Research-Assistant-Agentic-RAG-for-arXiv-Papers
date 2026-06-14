@@ -175,11 +175,16 @@ class RAGEvaluator:
             from datasets import Dataset
             from ragas import evaluate as ragas_evaluate
             from ragas.metrics import answer_relevancy, context_precision, faithfulness
+            from ragas.run_config import RunConfig
         except ImportError:
             return self._backend_error_result(
                 "ragas",
                 "RAGAS backend requested, but optional dependencies are not installed. Install requirements-eval.txt before using EVALUATION_BACKEND=ragas.",
             )
+
+        runtime = self._ragas_runtime()
+        if runtime.get("error"):
+            return self._backend_error_result("ragas", runtime["error"])
 
         contexts = self._context_texts(retrieved_chunks)
         reference = self._reference_text(expected_topics) or query
@@ -195,11 +200,21 @@ class RAGEvaluator:
             result = ragas_evaluate(
                 dataset,
                 metrics=[context_precision, faithfulness, answer_relevancy],
+                llm=runtime.get("llm"),
+                embeddings=runtime.get("embeddings"),
+                run_config=RunConfig(
+                    timeout=config.RAGAS_TIMEOUT_SECONDS,
+                    max_retries=config.RAGAS_MAX_RETRIES,
+                    max_workers=config.RAGAS_MAX_WORKERS,
+                ),
+                raise_exceptions=True,
+                show_progress=False,
             )
             scores = result.to_pandas().iloc[0].to_dict()
         except Exception as exc:
-            logger.error("RAGAS evaluation failed: %s", exc)
-            return self._backend_error_result("ragas", f"RAGAS evaluation error: {exc}")
+            error_detail = f"{exc.__class__.__name__}: {exc!s}" if str(exc) else repr(exc)
+            logger.error("RAGAS evaluation failed: %s", error_detail)
+            return self._backend_error_result("ragas", f"RAGAS evaluation error: {error_detail}")
 
         results = {
             "context_relevance": self._metric_result(
@@ -219,6 +234,44 @@ class RAGEvaluator:
         }
         results["overall_rag_score"] = self._overall_score(results)
         return results
+
+    def _ragas_runtime(self) -> Dict[str, Any]:
+        provider = config.LLM_PROVIDER.lower()
+        if provider == "ollama":
+            try:
+                from langchain_community.chat_models import ChatOllama
+                from langchain_community.embeddings import OllamaEmbeddings
+            except ImportError as exc:
+                return {
+                    "error": (
+                        "RAGAS with Ollama requires compatible LangChain optional dependencies. "
+                        f"Import error: {exc}"
+                    )
+                }
+
+            return {
+                "llm": ChatOllama(
+                    model=config.OLLAMA_MODEL,
+                    base_url=config.OLLAMA_HOST,
+                    temperature=0.0,
+                ),
+                "embeddings": OllamaEmbeddings(
+                    model=config.RAGAS_OLLAMA_EMBEDDING_MODEL,
+                    base_url=config.OLLAMA_HOST,
+                ),
+            }
+
+        if provider == "openai":
+            if not config.OPENAI_API_KEY:
+                return {"error": "RAGAS with OpenAI requires OPENAI_API_KEY."}
+            return {"llm": None, "embeddings": None}
+
+        return {
+            "error": (
+                "RAGAS requires a real evaluator model. Set LLM_PROVIDER=ollama with "
+                f"OLLAMA_MODEL and RAGAS_OLLAMA_EMBEDDING_MODEL, or set LLM_PROVIDER=openai with OPENAI_API_KEY. Current provider: {provider}."
+            )
+        }
 
     def _evaluate_with_deepeval(
         self,

@@ -41,6 +41,10 @@ RERANK_TOP_N = int(os.getenv("RERANK_TOP_N", "8"))       # Pass top N to the LLM
 
 # Evaluation Configuration
 EVALUATION_BACKEND = os.getenv("EVALUATION_BACKEND", "llm_judge")  # llm_judge, ragas, deepeval
+RAGAS_OLLAMA_EMBEDDING_MODEL = os.getenv("RAGAS_OLLAMA_EMBEDDING_MODEL", "nomic-embed-text")
+RAGAS_TIMEOUT_SECONDS = int(os.getenv("RAGAS_TIMEOUT_SECONDS", "180"))
+RAGAS_MAX_RETRIES = int(os.getenv("RAGAS_MAX_RETRIES", "2"))
+RAGAS_MAX_WORKERS = int(os.getenv("RAGAS_MAX_WORKERS", "4"))
 
 # Chunking Parameters
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1000"))

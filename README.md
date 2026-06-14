@@ -364,12 +364,21 @@ Le backend d'évaluation se configure avec `EVALUATION_BACKEND` ou
 Exemple :
 
 ```bash
+ollama pull nomic-embed-text
+
+LLM_PROVIDER=ollama \
+RAGAS_OLLAMA_EMBEDDING_MODEL=nomic-embed-text \
+RAGAS_TIMEOUT_SECONDS=180 \
 .venv/bin/python -m agentic_rag.cli benchmark \
   --dataset data/eval/questions.jsonl \
   --experiment retrieval_study_ragas_v1 \
   --evaluation-backend ragas \
   --limit 3
 ```
+
+Pour le benchmark final, utiliser un modèle juge assez fiable pour produire les
+sorties JSON attendues par RAGAS. Les très petits modèles locaux sont utiles pour
+un smoke test, mais peuvent échouer sur les métriques structurées.
 
 ---
 

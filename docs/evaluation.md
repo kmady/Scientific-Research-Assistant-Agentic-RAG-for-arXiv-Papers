@@ -174,6 +174,25 @@ Les scores sont normalisés vers les champs communs :
 Si les dépendances ou la configuration fournisseur manquent, le résultat indique
 explicitement l'erreur dans `backend_error` ou dans la raison de la métrique.
 
+Pour utiliser RAGAS avec Ollama :
+
+```bash
+ollama pull nomic-embed-text
+
+LLM_PROVIDER=ollama \
+RAGAS_OLLAMA_EMBEDDING_MODEL=nomic-embed-text \
+RAGAS_TIMEOUT_SECONDS=180 \
+.venv/bin/python -m agentic_rag.cli benchmark \
+  --dataset data/eval/questions.jsonl \
+  --experiment retrieval_study_ragas_v1 \
+  --evaluation-backend ragas \
+  --limit 1
+```
+
+Pour un benchmark final, privilégier un modèle juge capable de suivre des
+formats JSON stricts. Les petits modèles locaux peuvent fonctionner pour valider
+le câblage, mais ils peuvent échouer sur les prompts structurés de RAGAS.
+
 ## Comparer Deux Versions
 
 Workflow typique :
