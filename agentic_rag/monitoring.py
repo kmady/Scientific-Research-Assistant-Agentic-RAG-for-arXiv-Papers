@@ -1,6 +1,10 @@
 from prometheus_client import start_http_server, Counter, Histogram, Gauge
 import time
 from typing import Optional
+import logging
+
+logger = logging.getLogger(__name__)
+_metrics_server_started = False
 
 # LLM metrics
 llm_latency_seconds = Histogram('llm_latency_seconds', 'Latency of LLM chat calls in seconds', ['model'])
@@ -41,10 +45,25 @@ except ValueError:
     process_cpu_seconds = None
 
 
-def start_metrics_server(port: int = 8000) -> None:
+def start_metrics_server(port: int = 8000) -> bool:
     """Start Prometheus metrics HTTP server on given port (non-blocking)."""
+    global _metrics_server_started
+    if _metrics_server_started:
+        return True
     # start_http_server spawns a background thread; calling it is sufficient.
-    start_http_server(port)
+    try:
+        start_http_server(port)
+        _metrics_server_started = True
+        return True
+    except OSError as exc:
+        if getattr(exc, "errno", None) == 98:
+            logger.warning("Prometheus metrics server already running or port %s is in use.", port)
+            _metrics_server_started = True
+            return True
+        if isinstance(exc, PermissionError):
+            logger.warning("Prometheus metrics server could not bind to port %s: %s", port, exc)
+            return False
+        raise
 
 
 def observe_llm_call(model: Optional[str], duration: float, success: bool = True) -> None:

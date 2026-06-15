@@ -187,6 +187,7 @@ def handle_eval_run(args):
     runner = ExperimentRunner(
         retrieval_mode=args.retrieval_mode,
         evaluation_backend=args.evaluation_backend,
+        answer_mode=args.answer_mode,
     )
     dataset_path = Path(args.dataset)
 
@@ -236,6 +237,7 @@ def handle_benchmark(args):
                 modes=modes,
                 limit=args.limit,
                 evaluation_backend=args.evaluation_backend,
+                answer_mode=args.answer_mode,
             )
     else:
         print(f"Running retrieval benchmark: {args.experiment}")
@@ -246,6 +248,7 @@ def handle_benchmark(args):
             modes=modes,
             limit=args.limit,
             evaluation_backend=args.evaluation_backend,
+            answer_mode=args.answer_mode,
         )
 
     results = comparison.get("results", [])
@@ -324,6 +327,12 @@ def main():
         default=None,
         help="Evaluation backend override. Defaults to EVALUATION_BACKEND from environment.",
     )
+    parser_eval.add_argument(
+        "--answer-mode",
+        choices=["agentic", "retrieval"],
+        default="agentic",
+        help="Answer generation mode. Use retrieval for controlled retrieval benchmarks.",
+    )
 
     # Benchmark sub-command
     parser_benchmark = subparsers.add_parser("benchmark", help="Run the same evaluation across retrieval modes")
@@ -341,6 +350,12 @@ def main():
         choices=["llm_judge", "ragas", "deepeval"],
         default=None,
         help="Evaluation backend override. Defaults to EVALUATION_BACKEND from environment.",
+    )
+    parser_benchmark.add_argument(
+        "--answer-mode",
+        choices=["agentic", "retrieval"],
+        default="agentic",
+        help="Answer generation mode. Use retrieval for controlled retrieval benchmarks.",
     )
     
     args = parser.parse_args()

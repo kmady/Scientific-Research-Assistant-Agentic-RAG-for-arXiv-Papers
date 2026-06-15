@@ -22,6 +22,7 @@ class OllamaClient(LLMClient):
     def __init__(self):
         self.host = config.OLLAMA_HOST
         self.model = config.OLLAMA_MODEL
+        self.timeout = config.OLLAMA_TIMEOUT_SECONDS
 
     def chat(self, messages: List[Dict[str, str]], temperature: float = 0.2, response_json: bool = False) -> LLMResponse:
         url = f"{self.host}/api/chat"
@@ -37,7 +38,7 @@ class OllamaClient(LLMClient):
             payload["format"] = "json"
 
         try:
-            response = requests.post(url, json=payload, timeout=60)
+            response = requests.post(url, json=payload, timeout=self.timeout)
             response.raise_for_status()
             data = response.json()
             content = data["message"]["content"]

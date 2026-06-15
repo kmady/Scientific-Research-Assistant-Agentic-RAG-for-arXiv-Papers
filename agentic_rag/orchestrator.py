@@ -61,8 +61,9 @@ class AgenticOrchestrator:
 
         # Start metrics server (exposes /metrics on port 8000)
         try:
-            monitoring.start_metrics_server(port=int(config.__dict__.get('METRICS_PORT', 8000)))
-            logger.info("Prometheus metrics server started on port %s", config.__dict__.get('METRICS_PORT', 8000))
+            metrics_started = monitoring.start_metrics_server(port=int(config.__dict__.get('METRICS_PORT', 8000)))
+            if metrics_started:
+                logger.info("Prometheus metrics server started on port %s", config.__dict__.get('METRICS_PORT', 8000))
         except Exception:
             logger.exception("Failed to start Prometheus metrics server")
 

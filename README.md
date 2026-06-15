@@ -368,11 +368,13 @@ ollama pull nomic-embed-text
 
 LLM_PROVIDER=ollama \
 RAGAS_OLLAMA_EMBEDDING_MODEL=nomic-embed-text \
+OLLAMA_TIMEOUT_SECONDS=180 \
 RAGAS_TIMEOUT_SECONDS=180 \
 .venv/bin/python -m agentic_rag.cli benchmark \
   --dataset data/eval/questions.jsonl \
   --experiment retrieval_study_ragas_v1 \
   --evaluation-backend ragas \
+  --answer-mode retrieval \
   --limit 3
 ```
 

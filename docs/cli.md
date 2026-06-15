@@ -100,6 +100,7 @@ Options :
 | `--limit` | Nombre maximal de questions à exécuter. |
 | `--retrieval-mode` | `faiss`, `bm25`, `hybrid` ou `hybrid_reranker`. |
 | `--evaluation-backend` | `llm_judge`, `ragas` ou `deepeval`. |
+| `--answer-mode` | `agentic` pour la boucle complète, ou `retrieval` pour une synthèse contrôlée depuis les chunks récupérés. |
 
 Exemple rapide sur une seule question :
 
@@ -109,7 +110,8 @@ Exemple rapide sur une seule question :
   --experiment smoke_test \
   --limit 1 \
   --retrieval-mode faiss \
-  --evaluation-backend llm_judge
+  --evaluation-backend llm_judge \
+  --answer-mode retrieval
 ```
 
 Comparer les quatre modes :
@@ -129,6 +131,7 @@ Ou lancer un benchmark complet :
   --experiment retrieval_study_v1 \
   --modes faiss,bm25,hybrid,hybrid_reranker \
   --evaluation-backend llm_judge \
+  --answer-mode retrieval \
   --limit 1
 ```
 

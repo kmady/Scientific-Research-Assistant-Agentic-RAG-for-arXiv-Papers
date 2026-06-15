@@ -12,6 +12,16 @@ from agentic_rag.vector_db import normalize_retrieval_mode
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_ANSWER_MODES = {"agentic", "retrieval"}
+
+
+def normalize_answer_mode(answer_mode: str | None) -> str:
+    answer_mode = (answer_mode or "agentic").strip().lower()
+    if answer_mode not in SUPPORTED_ANSWER_MODES:
+        valid = ", ".join(sorted(SUPPORTED_ANSWER_MODES))
+        raise ValueError(f"Invalid answer mode '{answer_mode}'. Expected one of: {valid}")
+    return answer_mode
+
 
 def read_jsonl(path: Path) -> List[Dict[str, Any]]:
     records = []
@@ -44,6 +54,7 @@ def current_rag_config() -> Dict[str, Any]:
     return {
         "llm_provider": config.LLM_PROVIDER,
         "ollama_model": config.OLLAMA_MODEL,
+        "ollama_timeout_seconds": config.OLLAMA_TIMEOUT_SECONDS,
         "embedding_provider": config.EMBEDDING_PROVIDER,
         "local_embedding_model": config.LOCAL_EMBEDDING_MODEL,
         "embedding_dim": config.EMBEDDING_DIM,
@@ -125,10 +136,12 @@ class ExperimentRunner:
         output_root: Path = Path("runs"),
         retrieval_mode: str | None = None,
         evaluation_backend: str | None = None,
+        answer_mode: str | None = None,
     ):
         self.output_root = output_root
         self.retrieval_mode = normalize_retrieval_mode(retrieval_mode).value
         self.evaluation_backend = normalize_evaluation_backend(evaluation_backend)
+        self.answer_mode = normalize_answer_mode(answer_mode)
         self.orchestrator = AgenticOrchestrator(retrieval_mode=self.retrieval_mode)
         self.evaluator = RAGEvaluator(backend=self.evaluation_backend)
 
@@ -146,6 +159,7 @@ class ExperimentRunner:
             "dataset_path": str(dataset_path),
             "retrieval_mode": self.retrieval_mode,
             "evaluation_backend": self.evaluation_backend,
+            "answer_mode": self.answer_mode,
             "started_at": datetime.now(timezone.utc).isoformat(),
         })
         write_json(output_dir / "config.json", config_snapshot)
@@ -157,14 +171,16 @@ class ExperimentRunner:
             logger.info("Running experiment '%s' question %s", experiment, question_id)
 
             started = time.perf_counter()
-            rag_result = self.orchestrator.run(question)
+            if self.answer_mode == "retrieval":
+                rag_result, retrieved = self._run_retrieval_answer(question)
+            else:
+                rag_result = self.orchestrator.run(question)
+                retrieved = self.orchestrator.vector_store.search(
+                    question,
+                    top_k=config.RETRIEVAL_TOP_K,
+                    mode=self.retrieval_mode,
+                )
             latency = time.perf_counter() - started
-
-            retrieved = self.orchestrator.vector_store.search(
-                question,
-                top_k=config.RETRIEVAL_TOP_K,
-                mode=self.retrieval_mode,
-            )
             evaluation = self.evaluator.evaluate(
                 question,
                 retrieved,
@@ -212,5 +228,59 @@ class ExperimentRunner:
         summary = summarize_results(records, experiment)
         summary["retrieval_mode"] = self.retrieval_mode
         summary["evaluation_backend"] = self.evaluation_backend
+        summary["answer_mode"] = self.answer_mode
         write_json(output_dir / "summary.json", summary)
         return summary
+
+    def _run_retrieval_answer(self, question: str) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        retrieved = self.orchestrator.vector_store.search(
+            question,
+            top_k=config.RERANK_TOP_N,
+            mode=self.retrieval_mode,
+        )
+        context = "\n\n".join(
+            f"[{index}] {chunk.get('title', '')} | {chunk.get('section', '')} | "
+            f"p. {chunk.get('page_start', '')}-{chunk.get('page_end', '')}\n{chunk.get('text', '')}"
+            for index, chunk in enumerate(retrieved, start=1)
+        )
+        prompt = [
+            {
+                "role": "system",
+                "content": (
+                    "Answer the question using only the retrieved context. Be concise, "
+                    "scientific, and cite chunk numbers when useful."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Question: {question}\n\nRetrieved context:\n{context}",
+            },
+        ]
+
+        try:
+            response = self.orchestrator.llm.chat(prompt, temperature=0.1)
+            answer = response.content
+            success = True
+            error = None
+        except Exception as exc:
+            answer = "Answer generation failed."
+            success = False
+            error = str(exc)
+
+        steps = [{
+            "step": 1,
+            "thought": "Generated answer directly from retrieved chunks for benchmark control.",
+            "action": "retrieval_answer",
+            "action_input": {
+                "retrieval_mode": self.retrieval_mode,
+                "top_k": config.RERANK_TOP_N,
+            },
+        }]
+        result = {
+            "answer": answer,
+            "steps": steps,
+            "success": success,
+        }
+        if error:
+            result["error"] = error
+        return result, retrieved

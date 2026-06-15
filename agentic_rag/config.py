@@ -22,6 +22,7 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:7b")  # qwen2.5:7b, llama3.1, mistral
+OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
 
 # Embedding Configuration
 EMBEDDING_PROVIDER = os.getenv("EMBEDDING_PROVIDER", "local")  # local, gemini, openai
